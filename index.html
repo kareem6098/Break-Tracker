@@ -14,7 +14,7 @@
 
         // Global Firebase variables (provided by Canvas environment)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        // REPLACE THE LINE BELOW WITH YOUR ACTUAL FIREBASE CONFIGURATION
+        // YOUR FIREBASE CONFIGURATION - REPLACE THIS BLOCK WITH YOUR ACTUAL CONFIG IF IT'S DIFFERENT
         const firebaseConfig = {
           apiKey: "AIzaSyAuVMBEuRsFIcllvr0pfLq7rBMfrhUHjq8",
           authDomain: "breaktracker-ce082.firebaseapp.com",
@@ -24,7 +24,7 @@
           appId: "1:1088975926809:web:b4ff3d7257e8bd3cca9c88",
           measurementId: "G-RPJS2W27KD"
         };
-        // END OF FIREBASE CONFIGURATION
+        // END OF YOUR FIREBASE CONFIGURATION
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
@@ -92,11 +92,11 @@
         </div>
 
         <!-- Status Message -->
-        <p id="status-message" class="text-xl font-semibold text-gray-600 mb-8">Ready to start a break!</p>
+        <p id="status-message" class="text-xl font-semibold text-gray-600 mb-8">Loading break data...</p>
 
         <!-- Break Control Buttons -->
         <div class="flex flex-wrap justify-center gap-4 mb-8">
-            <button id="start-break-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+            <button id="start-break-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105" disabled>
                 Start Break
             </button>
             <button id="end-break-button" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105" disabled>
@@ -491,3 +491,92 @@
             breakCount = 0; // Reset break counter
 
             statusMessage.textContent = "Ready to start a break!";
+            statusMessage.classList.remove('text-indigo-700', 'text-green-700');
+            statusMessage.classList.add('text-gray-600');
+
+            // Re-enable start break button, disable end break button
+            startBreakButton.disabled = false;
+            endBreakButton.disabled = true;
+        }
+
+        // Event Listeners
+        startBreakButton.addEventListener('click', startBreak);
+        endBreakButton.addEventListener('click', endBreak);
+        resetLogButton.addEventListener('click', showPasswordModal); // Show password modal on reset click
+
+        confirmNameButton.addEventListener('click', async () => {
+            const name = operatorNameInput.value.trim();
+            if (name) {
+                operatorName = name;
+                hideOperatorModal();
+                await saveOperatorName(name); // Save operator name to Firestore
+                // After confirming name, immediately start the break if the user clicked startBreak
+                if (!isBreakActive) {
+                    startBreak();
+                }
+            } else {
+                console.log("Operator name cannot be empty.");
+                // Optionally, provide visual feedback to the user that name is required
+            }
+        });
+
+        // Event listener for the cancel button in the operator name modal
+        cancelNameButton.addEventListener('click', () => {
+            hideOperatorModal();
+            // No other state changes needed, as the tracker should remain in its initial state.
+        });
+
+        // Allow pressing Enter in the name input to confirm
+        operatorNameInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                confirmNameButton.click();
+            }
+        });
+
+        confirmPasswordButton.addEventListener('click', () => {
+            if (passwordInput.value === CORRECT_PASSWORD) {
+                hidePasswordModal();
+                resetLog(); // Perform the reset
+            } else {
+                passwordErrorMessage.classList.remove('hidden'); // Show error message
+            }
+        });
+
+        cancelPasswordButton.addEventListener('click', () => {
+            hidePasswordModal(); // Just hide the modal
+        });
+
+        // Allow pressing Enter in the password input to confirm
+        passwordInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                confirmPasswordButton.click();
+            }
+        });
+
+        // Initial setup on window load
+        window.onload = function() {
+            updateBreakDisplay(); // Ensure timer shows 00:00:00 initially
+
+            // Authenticate anonymously and then load data
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    userId = user.uid;
+                    console.log("Authenticated with Firebase. User ID:", userId);
+                    await loadBreakLogs(); // Load existing data for this user
+                } else {
+                    console.log("No user signed in. Signing in anonymously...");
+                    try {
+                        const anonUser = await signInAnonymously(auth);
+                        userId = anonUser.user.uid;
+                        console.log("Signed in anonymously. User ID:", userId);
+                        await loadBreakLogs(); // Load existing data for this new anonymous user
+                    } catch (error) {
+                        console.error("Error signing in anonymously:", error);
+                        statusMessage.textContent = "Error authenticating. Please refresh.";
+                    }
+                }
+            });
+        };
+    </script>
+</body>
+</html>
