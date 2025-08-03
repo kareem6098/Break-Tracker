@@ -6,6 +6,49 @@
     <title>Break Tracker</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Firebase variables (provided by Canvas environment)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // REPLACE THE LINE BELOW WITH YOUR ACTUAL FIREBASE CONFIGURATION
+        const firebaseConfig = {
+          apiKey: "AIzaSyAuVMBEuRsFIcllvr0pfLq7rBMfrhUHjq8",
+          authDomain: "breaktracker-ce082.firebaseapp.com",
+          projectId: "breaktracker-ce082",
+          storageBucket: "breaktracker-ce082.firebasestorage.app",
+          messagingSenderId: "1088975926809",
+          appId: "1:1088975926809:web:b4ff3d7257e8bd3cca9c88",
+          measurementId: "G-RPJS2W27KD"
+        };
+        // END OF FIREBASE CONFIGURATION
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // Expose to global scope for use in main script
+        window.firebaseApp = app;
+        window.firebaseDb = db;
+        window.firebaseAuth = auth;
+        window.firebaseSignInAnonymously = signInAnonymously;
+        window.firebaseSignInWithCustomToken = signInWithCustomToken;
+        window.firebaseOnAuthStateChanged = onAuthStateChanged;
+        window.firebaseCollection = collection;
+        window.firebaseAddDoc = addDoc;
+        window.firebaseGetDocs = getDocs;
+        window.firebaseQuery = query;
+        window.firebaseOrderBy = orderBy;
+        window.firebaseDeleteDoc = deleteDoc;
+        window.firebaseDoc = doc;
+        window.firebaseWriteBatch = writeBatch;
+        window.currentAppId = appId; // Expose appId
+    </script>
+
     <style>
         /* Custom styles for the Inter font and overall look */
         body {
@@ -63,7 +106,7 @@
 
         <!-- Reset Log Button -->
         <div class="flex justify-center mt-4">
-            <button id="reset-log-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+            <button id="reset-log-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105" disabled>
                 Reset Log
             </button>
         </div>
@@ -110,7 +153,7 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
         // Get DOM elements
         const hoursDisplay = document.getElementById('hours');
         const minutesDisplay = document.getElementById('minutes');
@@ -140,6 +183,24 @@
         let breakCount = 0; // Counter for breaks taken by the current operator
 
         const CORRECT_PASSWORD = "8801102285"; // Password for reset log
+
+        // Firebase variables from global scope
+        const db = window.firebaseDb;
+        const auth = window.firebaseAuth;
+        const signInAnonymously = window.firebaseSignInAnonymously;
+        const signInWithCustomToken = window.firebaseSignInWithCustomToken;
+        const onAuthStateChanged = window.firebaseOnAuthStateChanged;
+        const collection = window.firebaseCollection;
+        const addDoc = window.firebaseAddDoc;
+        const getDocs = window.firebaseGetDocs;
+        const query = window.firebaseQuery;
+        const orderBy = window.firebaseOrderBy;
+        const deleteDoc = window.firebaseDeleteDoc;
+        const doc = window.firebaseDoc;
+        const writeBatch = window.firebaseWriteBatch;
+        const appId = window.currentAppId;
+
+        let userId = null; // Will be set after Firebase auth
 
         /**
          * Updates the break timer display (hours, minutes, and seconds).
@@ -227,7 +288,7 @@
             clearInterval(breakTimerIntervalId); // Stop the break timer
             breakTimerIntervalId = null;
 
-            logBreak(); // Log the current break
+            logBreak(); // Log the current break to Firestore
 
             isBreakActive = false;
             breakStartTime = null;
@@ -246,9 +307,9 @@
         }
 
         /**
-         * Logs the completed break session.
+         * Logs the completed break session to Firestore and updates display.
          */
-        function logBreak() {
+        async function logBreak() {
             if (!breakStartTime) return; // Should not happen if isBreakActive is true
 
             const breakEndTime = new Date();
@@ -259,8 +320,34 @@
             const minutes = Math.floor((durationSeconds % 3600) / 60);
             const seconds = durationSeconds % 60;
 
-            breakCount++; // Increment break counter for the current operator
+            // Increment breakCount and then use it for logging
+            breakCount++;
 
+            const logEntryData = {
+                operatorName: operatorName,
+                breakNumber: breakCount,
+                durationSeconds: durationSeconds,
+                timestamp: breakEndTime.toISOString(), // Store as ISO string for sorting
+                display: `${operatorName} - Break ${breakCount} - ${String(hours).padStart(2, '0')} hr ${String(minutes).padStart(2, '0')} mins ${String(seconds).padStart(2, '0')} secs`
+            };
+
+            try {
+                // Save to Firestore
+                await addDoc(collection(db, `artifacts/${appId}/users/${userId}/breakLogs`), logEntryData);
+                console.log("Break logged to Firestore successfully!");
+                // Update local display after successful save
+                updateBreakLogDisplay(logEntryData);
+            } catch (error) {
+                console.error("Error logging break to Firestore:", error);
+                // Optionally show an error message to the user
+            }
+        }
+
+        /**
+         * Updates the local break log display.
+         * @param {object} entryData - The data for the log entry.
+         */
+        function updateBreakLogDisplay(entryData) {
             // If "No breaks logged yet." message exists, remove it
             const currentNoBreaksMessage = document.getElementById('no-breaks-message');
             if (currentNoBreaksMessage) {
@@ -269,14 +356,92 @@
 
             const logEntry = document.createElement('p');
             logEntry.classList.add('py-1', 'border-b', 'border-gray-100', 'last:border-b-0');
-            logEntry.textContent = `${operatorName} - Break ${breakCount} - ${String(hours).padStart(2, '0')} hr ${String(minutes).padStart(2, '0')} mins ${String(seconds).padStart(2, '0')} secs`;
+            logEntry.textContent = entryData.display;
             breakLog.prepend(logEntry); // Add to the top of the log
         }
 
         /**
-         * Resets the break log and all related tracking variables.
+         * Loads existing break logs from Firestore.
          */
-        function resetLog() {
+        async function loadBreakLogs() {
+            if (!userId) {
+                console.warn("User not authenticated yet, cannot load logs.");
+                return;
+            }
+
+            statusMessage.textContent = "Loading break data...";
+            startBreakButton.disabled = true;
+            resetLogButton.disabled = true;
+
+            try {
+                // Get operator name if previously saved
+                const operatorNameRef = doc(db, `artifacts/${appId}/users/${userId}/appState/operator`);
+                const operatorDoc = await getDocs(query(collection(db, `artifacts/${appId}/users/${userId}/appState`)));
+                if (!operatorDoc.empty && operatorDoc.docs[0].data().name) {
+                    operatorName = operatorDoc.docs[0].data().name;
+                }
+
+                const q = query(collection(db, `artifacts/${appId}/users/${userId}/breakLogs`));
+                const querySnapshot = await getDocs(q);
+
+                breakLog.innerHTML = ''; // Clear current display
+                let maxBreakNumber = 0;
+                if (querySnapshot.empty) {
+                    noBreaksMessage.style.display = 'block';
+                    breakLog.appendChild(noBreaksMessage);
+                } else {
+                    noBreaksMessage.style.display = 'none';
+                    const loadedLogs = [];
+                    querySnapshot.forEach((doc) => {
+                        const data = doc.data();
+                        loadedLogs.push(data);
+                        if (data.breakNumber > maxBreakNumber) {
+                            maxBreakNumber = data.breakNumber;
+                        }
+                    });
+                    // Sort by timestamp to display in correct order (most recent first)
+                    loadedLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    loadedLogs.forEach(entry => updateBreakLogDisplay(entry));
+                }
+                breakCount = maxBreakNumber; // Set breakCount to the highest existing break number
+
+                if (operatorName) {
+                    statusMessage.textContent = `Hello ${operatorName}! Ready to start a break.`;
+                    statusMessage.classList.remove('text-gray-600');
+                    statusMessage.classList.add('text-indigo-700');
+                } else {
+                    statusMessage.textContent = "Ready to start a break!";
+                    statusMessage.classList.remove('text-indigo-700');
+                    statusMessage.classList.add('text-gray-600');
+                }
+
+            } catch (error) {
+                console.error("Error loading break logs:", error);
+                statusMessage.textContent = "Error loading data. Please refresh.";
+            } finally {
+                startBreakButton.disabled = false;
+                resetLogButton.disabled = false;
+            }
+        }
+
+        /**
+         * Saves the operator name to Firestore.
+         */
+        async function saveOperatorName(name) {
+            if (!userId) return;
+            try {
+                // Use a specific document to store the operator name
+                await addDoc(collection(db, `artifacts/${appId}/users/${userId}/appState`), { name: name });
+                console.log("Operator name saved to Firestore.");
+            } catch (error) {
+                console.error("Error saving operator name:", error);
+            }
+        }
+
+        /**
+         * Resets the break log and all related tracking variables, clearing Firestore data.
+         */
+        async function resetLog() {
             // Stop any active break timer first
             if (isBreakActive) {
                 clearInterval(breakTimerIntervalId);
@@ -292,6 +457,32 @@
                 currentNoBreaksMessage.style.display = 'block';
             }
 
+            // Delete all documents from Firestore collection
+            try {
+                const q = query(collection(db, `artifacts/${appId}/users/${userId}/breakLogs`));
+                const querySnapshot = await getDocs(q);
+                const batch = writeBatch(db);
+                querySnapshot.forEach((doc) => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+                console.log("Break logs deleted from Firestore successfully!");
+
+                // Also delete operator name
+                const operatorStateCollection = collection(db, `artifacts/${appId}/users/${userId}/appState`);
+                const operatorStateDocs = await getDocs(operatorStateCollection);
+                const operatorBatch = writeBatch(db);
+                operatorStateDocs.forEach((doc) => {
+                    operatorBatch.delete(doc.ref);
+                });
+                await operatorBatch.commit();
+                console.log("Operator name deleted from Firestore successfully!");
+
+            } catch (error) {
+                console.error("Error resetting log in Firestore:", error);
+                // Optionally show an error message to the user
+            }
+
             // Reset all tracking variables
             currentBreakTime = 0;
             updateBreakDisplay(); // Reset timer display to 00:00:00
@@ -300,71 +491,3 @@
             breakCount = 0; // Reset break counter
 
             statusMessage.textContent = "Ready to start a break!";
-            statusMessage.classList.remove('text-indigo-700', 'text-green-700');
-            statusMessage.classList.add('text-gray-600');
-
-            // Re-enable start break button, disable end break button
-            startBreakButton.disabled = false;
-            endBreakButton.disabled = true;
-        }
-
-        // Event Listeners
-        startBreakButton.addEventListener('click', startBreak);
-        endBreakButton.addEventListener('click', endBreak);
-        resetLogButton.addEventListener('click', showPasswordModal); // Show password modal on reset click
-
-        confirmNameButton.addEventListener('click', () => {
-            const name = operatorNameInput.value.trim();
-            if (name) {
-                operatorName = name;
-                hideOperatorModal();
-                // After confirming name, immediately start the break if the user clicked startBreak
-                if (!isBreakActive) {
-                    startBreak();
-                }
-            } else {
-                console.log("Operator name cannot be empty.");
-                // Optionally, provide visual feedback to the user that name is required
-            }
-        });
-
-        // Event listener for the cancel button in the operator name modal
-        cancelNameButton.addEventListener('click', () => {
-            hideOperatorModal();
-            // No other state changes needed, as the tracker should remain in its initial state.
-        });
-
-        // Allow pressing Enter in the name input to confirm
-        operatorNameInput.addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                confirmNameButton.click();
-            }
-        });
-
-        confirmPasswordButton.addEventListener('click', () => {
-            if (passwordInput.value === CORRECT_PASSWORD) {
-                hidePasswordModal();
-                resetLog(); // Perform the reset
-            } else {
-                passwordErrorMessage.classList.remove('hidden'); // Show error message
-            }
-        });
-
-        cancelPasswordButton.addEventListener('click', () => {
-            hidePasswordModal(); // Just hide the modal
-        });
-
-        // Allow pressing Enter in the password input to confirm
-        passwordInput.addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                confirmPasswordButton.click();
-            }
-        });
-
-        // Initial display update on window load
-        window.onload = function() {
-            updateBreakDisplay(); // Ensure timer shows 00:00:00 initially
-        };
-    </script>
-</body>
-</html>
