@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Break Tracker</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the Inter font and overall look */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 1rem; /* Add some padding for smaller screens */
+        }
+        /* Ensure the main container grows and shrinks responsively */
+        .container {
+            max-width: 500px; /* Max width for desktop */
+            width: 100%; /* Full width on smaller screens */
+        }
+        /* Style for the time display */
+        .time-display {
+            font-variant-numeric: tabular-nums; /* Ensures numbers align vertically */
+        }
+        /* Hide scrollbar for break log but allow scrolling */
+        .break-log-container {
+            max-height: 200px; /* Limit height */
+            overflow-y: auto; /* Enable vertical scrolling */
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        .break-log-container::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, Opera */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="container bg-white p-8 rounded-xl shadow-lg text-center border border-gray-200">
+        <h1 class="text-4xl font-extrabold text-gray-800 mb-6">Break Tracker</h1>
+
+        <!-- Timer Display (HH hr:MM mins:SS secs) - Now for current break duration -->
+        <div class="time-display text-7xl font-bold text-indigo-700 mb-8 tracking-tight">
+            <span id="hours">00</span><span class="text-5xl"> hr:</span><span id="minutes">00</span><span class="text-5xl"> mins:</span><span id="seconds">00</span><span class="text-5xl"> secs</span>
+        </div>
+
+        <!-- Status Message -->
+        <p id="status-message" class="text-xl font-semibold text-gray-600 mb-8">Ready to start a break!</p>
+
+        <!-- Break Control Buttons -->
+        <div class="flex flex-wrap justify-center gap-4 mb-8">
+            <button id="start-break-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                Start Break
+            </button>
+            <button id="end-break-button" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105" disabled>
+                End Break
+            </button>
+        </div>
+
+        <!-- Reset Log Button -->
+        <div class="flex justify-center mt-4">
+            <button id="reset-log-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                Reset Log
+            </button>
+        </div>
+
+        <!-- Break Log -->
+        <div class="mt-8 pt-6 border-t border-gray-200">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Break Log</h2>
+            <div id="break-log" class="break-log-container bg-gray-50 p-4 rounded-md text-left text-gray-700 text-sm">
+                <p class="text-gray-500 text-center" id="no-breaks-message">No breaks logged yet.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Operator Name Modal -->
+    <div id="operator-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-8 rounded-xl shadow-lg text-center w-96 max-w-xs sm:max-w-sm">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Enter Operator Name</h2>
+            <input type="text" id="operator-name-input" placeholder="Your Name" class="w-full p-3 border border-gray-300 rounded-md mb-4 text-center focus:ring-indigo-500 focus:border-indigo-500">
+            <div class="flex justify-center gap-4">
+                <button id="confirm-name-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                    Confirm
+                </button>
+                <button id="cancel-name-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Modal for Reset Log -->
+    <div id="password-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-8 rounded-xl shadow-lg text-center w-96 max-w-xs sm:max-w-sm">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Enter Supervisor Password</h2>
+            <input type="password" id="password-input" placeholder="Password" class="w-full p-3 border border-gray-300 rounded-md mb-4 text-center focus:ring-indigo-500 focus:border-indigo-500">
+            <p id="password-error-message" class="text-red-500 text-sm mb-4 hidden">Incorrect password. Please try again.</p>
+            <div class="flex justify-center gap-4">
+                <button id="confirm-password-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                    Confirm
+                </button>
+                <button id="cancel-password-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get DOM elements
+        const hoursDisplay = document.getElementById('hours');
+        const minutesDisplay = document.getElementById('minutes');
+        const secondsDisplay = document.getElementById('seconds');
+        const statusMessage = document.getElementById('status-message');
+        const startBreakButton = document.getElementById('start-break-button');
+        const endBreakButton = document.getElementById('end-break-button');
+        const breakLog = document.getElementById('break-log');
+        const noBreaksMessage = document.getElementById('no-breaks-message');
+        const operatorModal = document.getElementById('operator-modal');
+        const operatorNameInput = document.getElementById('operator-name-input');
+        const confirmNameButton = document.getElementById('confirm-name-button');
+        const cancelNameButton = document.getElementById('cancel-name-button');
+        const resetLogButton = document.getElementById('reset-log-button');
+        const passwordModal = document.getElementById('password-modal');
+        const passwordInput = document.getElementById('password-input');
+        const confirmPasswordButton = document.getElementById('confirm-password-button');
+        const cancelPasswordButton = document.getElementById('cancel-password-button');
+        const passwordErrorMessage = document.getElementById('password-error-message');
+
+        // Timer variables
+        let currentBreakTime = 0; // Duration of the current break in seconds
+        let breakTimerIntervalId = null; // Interval ID for the break timer
+        let operatorName = ''; // Stores the operator's name
+        let breakStartTime = null; // Date object when the current break started
+        let isBreakActive = false; // True if currently on break
+        let breakCount = 0; // Counter for breaks taken by the current operator
+
+        const CORRECT_PASSWORD = "8801102285"; // Password for reset log
+
+        /**
+         * Updates the break timer display (hours, minutes, and seconds).
+         */
+        function updateBreakDisplay() {
+            const hours = Math.floor(currentBreakTime / 3600);
+            const minutes = Math.floor((currentBreakTime % 3600) / 60);
+            const seconds = currentBreakTime % 60;
+
+            hoursDisplay.textContent = String(hours).padStart(2, '0');
+            minutesDisplay.textContent = String(minutes).padStart(2, '0');
+            secondsDisplay.textContent = String(seconds).padStart(2, '0');
+        }
+
+        /**
+         * Shows the operator name input modal.
+         */
+        function showOperatorModal() {
+            operatorModal.classList.remove('hidden');
+            operatorNameInput.focus(); // Focus on the input field
+        }
+
+        /**
+         * Hides the operator name input modal.
+         */
+        function hideOperatorModal() {
+            operatorModal.classList.add('hidden');
+        }
+
+        /**
+         * Shows the password input modal.
+         */
+        function showPasswordModal() {
+            passwordModal.classList.remove('hidden');
+            passwordInput.value = ''; // Clear previous input
+            passwordErrorMessage.classList.add('hidden'); // Hide error message
+            passwordInput.focus(); // Focus on the input field
+        }
+
+        /**
+         * Hides the password input modal.
+         */
+        function hidePasswordModal() {
+            passwordModal.classList.add('hidden');
+        }
+
+        /**
+         * Starts a break, prompting for operator name if needed.
+         */
+        function startBreak() {
+            if (isBreakActive) return; // Prevent starting a new break if one is already active
+
+            if (!operatorName) {
+                // If operator name is not set, show the modal first
+                showOperatorModal();
+                return; // Stop execution until name is confirmed
+            }
+
+            // If operator name is set, proceed to start the break
+            breakStartTime = new Date();
+            isBreakActive = true;
+            currentBreakTime = 0; // Reset break timer for new break
+            updateBreakDisplay(); // Update display to 00:00:00
+
+            // Start the break timer
+            breakTimerIntervalId = setInterval(() => {
+                currentBreakTime++;
+                updateBreakDisplay();
+            }, 1000);
+
+            statusMessage.textContent = `${operatorName} is on break...`;
+            statusMessage.classList.remove('text-indigo-700');
+            statusMessage.classList.add('text-green-700');
+
+            startBreakButton.disabled = true;
+            endBreakButton.disabled = false;
+        }
+
+        /**
+         * Ends a break and logs its duration.
+         */
+        function endBreak() {
+            if (!isBreakActive) return; // Only end break if one is active
+
+            clearInterval(breakTimerIntervalId); // Stop the break timer
+            breakTimerIntervalId = null;
+
+            logBreak(); // Log the current break
+
+            isBreakActive = false;
+            breakStartTime = null;
+
+            // Reset timer display to 00:00:00 immediately
+            currentBreakTime = 0;
+            updateBreakDisplay();
+
+            // Update status message without "is back from break"
+            statusMessage.textContent = `Ready to start a break!`;
+            statusMessage.classList.remove('text-green-700');
+            statusMessage.classList.add('text-gray-600'); // Revert to initial gray color
+
+            startBreakButton.disabled = false;
+            endBreakButton.disabled = true;
+        }
+
+        /**
+         * Logs the completed break session.
+         */
+        function logBreak() {
+            if (!breakStartTime) return; // Should not happen if isBreakActive is true
+
+            const breakEndTime = new Date();
+            const durationMs = breakEndTime.getTime() - breakStartTime.getTime();
+            const durationSeconds = Math.floor(durationMs / 1000);
+
+            const hours = Math.floor(durationSeconds / 3600);
+            const minutes = Math.floor((durationSeconds % 3600) / 60);
+            const seconds = durationSeconds % 60;
+
+            breakCount++; // Increment break counter for the current operator
+
+            // If "No breaks logged yet." message exists, remove it
+            const currentNoBreaksMessage = document.getElementById('no-breaks-message');
+            if (currentNoBreaksMessage) {
+                currentNoBreaksMessage.style.display = 'none';
+            }
+
+            const logEntry = document.createElement('p');
+            logEntry.classList.add('py-1', 'border-b', 'border-gray-100', 'last:border-b-0');
+            logEntry.textContent = `${operatorName} - Break ${breakCount} - ${String(hours).padStart(2, '0')} hr ${String(minutes).padStart(2, '0')} mins ${String(seconds).padStart(2, '0')} secs`;
+            breakLog.prepend(logEntry); // Add to the top of the log
+        }
+
+        /**
+         * Resets the break log and all related tracking variables.
+         */
+        function resetLog() {
+            // Stop any active break timer first
+            if (isBreakActive) {
+                clearInterval(breakTimerIntervalId);
+                breakTimerIntervalId = null;
+                isBreakActive = false;
+                breakStartTime = null;
+            }
+
+            // Clear the break log display
+            breakLog.innerHTML = '<p class="text-gray-500 text-center" id="no-breaks-message">No breaks logged yet.</p>';
+            const currentNoBreaksMessage = document.getElementById('no-breaks-message');
+            if (currentNoBreaksMessage) {
+                currentNoBreaksMessage.style.display = 'block';
+            }
+
+            // Reset all tracking variables
+            currentBreakTime = 0;
+            updateBreakDisplay(); // Reset timer display to 00:00:00
+            operatorName = ''; // Clear operator name
+            operatorNameInput.value = ''; // Clear input field in operator modal
+            breakCount = 0; // Reset break counter
+
+            statusMessage.textContent = "Ready to start a break!";
+            statusMessage.classList.remove('text-indigo-700', 'text-green-700');
+            statusMessage.classList.add('text-gray-600');
+
+            // Re-enable start break button, disable end break button
+            startBreakButton.disabled = false;
+            endBreakButton.disabled = true;
+        }
+
+        // Event Listeners
+        startBreakButton.addEventListener('click', startBreak);
+        endBreakButton.addEventListener('click', endBreak);
+        resetLogButton.addEventListener('click', showPasswordModal); // Show password modal on reset click
+
+        confirmNameButton.addEventListener('click', () => {
+            const name = operatorNameInput.value.trim();
+            if (name) {
+                operatorName = name;
+                hideOperatorModal();
+                // After confirming name, immediately start the break if the user clicked startBreak
+                if (!isBreakActive) {
+                    startBreak();
+                }
+            } else {
+                console.log("Operator name cannot be empty.");
+                // Optionally, provide visual feedback to the user that name is required
+            }
+        });
+
+        // Event listener for the cancel button in the operator name modal
+        cancelNameButton.addEventListener('click', () => {
+            hideOperatorModal();
+            // No other state changes needed, as the tracker should remain in its initial state.
+        });
+
+        // Allow pressing Enter in the name input to confirm
+        operatorNameInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                confirmNameButton.click();
+            }
+        });
+
+        confirmPasswordButton.addEventListener('click', () => {
+            if (passwordInput.value === CORRECT_PASSWORD) {
+                hidePasswordModal();
+                resetLog(); // Perform the reset
+            } else {
+                passwordErrorMessage.classList.remove('hidden'); // Show error message
+            }
+        });
+
+        cancelPasswordButton.addEventListener('click', () => {
+            hidePasswordModal(); // Just hide the modal
+        });
+
+        // Allow pressing Enter in the password input to confirm
+        passwordInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                confirmPasswordButton.click();
+            }
+        });
+
+        // Initial display update on window load
+        window.onload = function() {
+            updateBreakDisplay(); // Ensure timer shows 00:00:00 initially
+        };
+    </script>
+</body>
+</html>
