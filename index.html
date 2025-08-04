@@ -610,8 +610,9 @@
          * This now renders the logs in a table format.
          */
         async function loadBreakLogs() {
+            console.log("loadBreakLogs called. Current userId:", userId);
             if (!userId) {
-                console.warn("User not authenticated yet, cannot load logs.");
+                console.warn("User not authenticated yet, cannot load logs. Setting UI to loading state.");
                 // Ensure buttons are disabled if not authenticated
                 startBreakButton.disabled = true;
                 endBreakButton.disabled = true;
@@ -634,7 +635,7 @@
                     operatorNameInput.value = operatorName; // Pre-fill the modal input
                     console.log("Operator name loaded:", operatorName);
                 } else {
-                    console.log("No operator name found for this user.");
+                    console.log("No operator name found for this user. Will prompt on start break.");
                 }
             } catch (error) {
                 console.error("Error loading operator name:", error);
@@ -646,7 +647,7 @@
                 const publicBreakDocRef = doc(db, `artifacts/${appId}/public/data/activeBreaks`, userId);
                 const publicBreakDoc = await getDoc(publicBreakDocRef);
 
-                console.log("Public break doc exists:", publicBreakDoc.exists());
+                console.log("Public break doc exists:", publicBreakDoc.exists(), "Data:", publicBreakDoc.exists() ? publicBreakDoc.data() : "N/A");
                 if (publicBreakDoc.exists() && publicBreakDoc.data().status === 'active') {
                     const data = publicBreakDoc.data();
                     breakStartTime = new Date(data.breakStartTime);
@@ -1076,6 +1077,7 @@
 
         // --- Firebase Authentication Initialization ---
         onAuthStateChanged(auth, async (user) => {
+            console.log("onAuthStateChanged fired. User:", user);
             if (user) {
                 // User is signed in.
                 userId = user.uid;
@@ -1083,15 +1085,16 @@
                 await loadBreakLogs(); // Load logs and set UI state after auth
             } else {
                 // User is signed out, sign in anonymously
+                console.log("User not signed in. Attempting anonymous sign-in.");
                 try {
                     // Use __initial_auth_token if available, otherwise sign in anonymously
                     const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
                     if (initialAuthToken) {
                         await signInWithCustomToken(auth, initialAuthToken);
-                        console.log("Signed in with custom token.");
+                        console.log("Signed in with custom token successfully.");
                     } else {
                         await signInAnonymously(auth);
-                        console.log("Signed in anonymously.");
+                        console.log("Signed in anonymously successfully.");
                     }
                 } catch (error) {
                     console.error("Error during Firebase anonymous sign-in:", error);
