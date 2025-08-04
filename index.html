@@ -10,7 +10,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, setDoc, writeBatch, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global Firebase variables (provided by Canvas environment)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -47,6 +47,7 @@
         window.firebaseDoc = doc;
         window.firebaseSetDoc = setDoc; // Expose setDoc for updating active breaks
         window.firebaseWriteBatch = writeBatch;
+        window.firebaseOnSnapshot = onSnapshot; // Expose onSnapshot for real-time updates
         window.currentAppId = appId; // Expose appId
     </script>
 
@@ -86,6 +87,7 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 1rem;
+            font-size: 0.9rem; /* Slightly smaller font for tables */
         }
         .supervisor-table th, .supervisor-table td {
             padding: 0.75rem;
@@ -103,6 +105,13 @@
         .supervisor-table tbody tr:hover {
             background-color: #ebf4ff; /* Tailwind blue-50 */
         }
+        .supervisor-table .status-active {
+            background-color: #d1fae5; /* Tailwind green-100 */
+        }
+        .supervisor-table .status-ended {
+            background-color: #f3f4f6; /* Tailwind gray-100 */
+        }
+        /* Removed status-flagged as it's no longer needed for visual distinction */
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
@@ -123,11 +132,11 @@
         </div>
 
         <!-- Status Message -->
-        <p id="status-message" class="text-xl font-semibold text-gray-600 mb-8">Ready to start a break!</p>
+        <p id="status-message" class="text-xl font-semibold text-gray-600 mb-8">Loading...</p>
 
         <!-- Break Control Buttons -->
         <div class="flex flex-wrap justify-center gap-4 mb-8">
-            <button id="start-break-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+            <button id="start-break-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105" disabled>
                 Start Break
             </button>
             <button id="end-break-button" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105" disabled>
@@ -161,7 +170,7 @@
         <h1 class="text-4xl font-extrabold text-gray-800 mb-6">Supervisor Dashboard</h1>
 
         <h2 class="text-2xl font-bold text-gray-800 mb-4">All Breaks Logged</h2>
-        <div class="break-log-container">
+        <div class="break-log-container mb-8">
             <table class="supervisor-table">
                 <thead>
                     <tr>
@@ -170,13 +179,14 @@
                         <th>End Time</th>
                         <th>Duration</th>
                         <th>Status</th>
+                        <th>Action</th> <!-- Column for action -->
                     </tr>
                 </thead>
-                <tbody id="active-breaks-table-body">
-                    <!-- Active breaks will be loaded here -->
+                <tbody id="all-breaks-table-body">
+                    <!-- All breaks will be loaded here -->
                 </tbody>
             </table>
-            <p class="text-gray-500 text-center mt-4" id="no-active-breaks-table-message">No breaks logged yet.</p>
+            <p class="text-gray-500 text-center mt-4" id="no-all-breaks-table-message">No breaks logged yet by any operator.</p>
         </div>
     </div>
 
@@ -264,8 +274,8 @@
         const backToOperatorViewButton = document.getElementById('back-to-operator-view-button'); // New button
 
         // Supervisor Dashboard elements
-        const activeBreaksTableBody = document.getElementById('active-breaks-table-body');
-        const noActiveBreaksTableMessage = document.getElementById('no-active-breaks-table-message');
+        const allBreaksTableBody = document.getElementById('all-breaks-table-body');
+        const noAllBreaksTableMessage = document.getElementById('no-all-breaks-table-message');
 
 
         // Timer variables
@@ -294,21 +304,30 @@
         const doc = window.firebaseDoc;
         const setDoc = window.firebaseSetDoc; // Use setDoc for updating active breaks
         const writeBatch = window.firebaseWriteBatch;
+        const onSnapshot = window.firebaseOnSnapshot; // Use onSnapshot for real-time updates
         const appId = window.currentAppId;
 
         let userId = null; // Will be set after Firebase auth
 
         /**
+         * Formats duration from seconds into HH hr:MM mins:SS secs.
+         * @param {number} totalSeconds - The total duration in seconds.
+         * @returns {string} Formatted duration string.
+         */
+        function formatDuration(totalSeconds) {
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(hours).padStart(2, '0')} hr ${String(minutes).padStart(2, '0')} mins ${String(seconds).padStart(2, '0')} secs`;
+        }
+
+        /**
          * Updates the break timer display (hours, minutes, and seconds).
          */
         function updateBreakDisplay() {
-            const hours = Math.floor(currentBreakTime / 3600);
-            const minutes = Math.floor((currentBreakTime % 3600) / 60);
-            const seconds = currentBreakTime % 60;
-
-            hoursDisplay.textContent = String(hours).padStart(2, '0');
-            minutesDisplay.textContent = String(minutes).padStart(2, '0');
-            secondsDisplay.textContent = String(seconds).padStart(2, '0');
+            hoursDisplay.textContent = String(Math.floor(currentBreakTime / 3600)).padStart(2, '0');
+            minutesDisplay.textContent = String(Math.floor((currentBreakTime % 3600) / 60)).padStart(2, '0');
+            secondsDisplay.textContent = String(currentBreakTime % 60).padStart(2, '0');
         }
 
         /**
@@ -366,9 +385,11 @@
         function switchToSupervisorView() {
             operatorView.classList.add('hidden');
             supervisorView.classList.remove('hidden');
-            loadActiveBreaks(); // Load immediately
-            // Start interval to refresh active breaks every 5 seconds
-            supervisorDashboardIntervalId = setInterval(loadActiveBreaks, 5000);
+            loadAllBreaksForSupervisor(); // Load all breaks for supervisor dashboard
+            // Start interval to refresh supervisor dashboard data
+            supervisorDashboardIntervalId = setInterval(() => {
+                loadAllBreaksForSupervisor();
+            }, 5000);
         }
 
         /**
@@ -381,8 +402,10 @@
                 clearInterval(supervisorDashboardIntervalId);
                 supervisorDashboardIntervalId = null;
             }
-            activeBreaksTableBody.innerHTML = ''; // Clear dashboard display
-            noActiveBreaksTableMessage.style.display = 'block'; // Show no active breaks message
+            allBreaksTableBody.innerHTML = ''; // Clear dashboard display
+            noAllBreaksTableMessage.style.display = 'block'; // Show no breaks message
+            // Re-initialize operator view state after returning
+            loadBreakLogs();
         }
 
         /**
@@ -410,7 +433,7 @@
             }, 1000);
 
             statusMessage.textContent = `${operatorName} is on break...`;
-            statusMessage.classList.remove('text-indigo-700');
+            statusMessage.classList.remove('text-indigo-700', 'text-gray-600'); // Clean up old statuses
             statusMessage.classList.add('text-green-700');
 
             startBreakButton.disabled = true;
@@ -422,7 +445,8 @@
                     operatorName: operatorName,
                     breakStartTime: breakStartTime.toISOString(),
                     status: 'active', // Mark as active
-                    userId: userId // Store userId for security rules
+                    userId: userId, // Store userId for security rules
+                    hiddenFromSupervisor: false // Initialize flag for hiding from supervisor
                 });
                 console.log("Active break status updated in public log.");
             } catch (error) {
@@ -453,10 +477,10 @@
             currentBreakTime = 0;
             updateBreakDisplay();
 
-            // Update status message without "is back from break"
+            // Update status message
             statusMessage.textContent = `Ready to start a break!`;
             statusMessage.classList.remove('text-green-700');
-            statusMessage.classList.add('text-gray-600'); // Revert to initial gray color
+            statusMessage.classList.add('text-gray-600');
 
             startBreakButton.disabled = false;
             endBreakButton.disabled = true;
@@ -480,19 +504,12 @@
         async function logBreakPrivate(breakEndTime, durationSeconds) {
             if (!breakStartTime) return; // Should not happen if isBreakActive is true
 
-            const hours = Math.floor(durationSeconds / 3600);
-            const minutes = Math.floor((durationSeconds % 3600) / 60);
-            const seconds = durationSeconds % 60;
-
-            // Increment breakCount and then use it for logging
-            breakCount++;
-
             const logEntryData = {
                 operatorName: operatorName,
-                breakNumber: breakCount,
+                breakNumber: breakCount + 1, // Increment for the log entry
                 durationSeconds: durationSeconds,
                 timestamp: breakEndTime.toISOString(), // Store as ISO string for sorting
-                display: `${operatorName} - Break ${breakCount} - ${String(hours).padStart(2, '0')} hr ${String(minutes).padStart(2, '0')} mins ${String(seconds).padStart(2, '0')} secs`
+                display: `${operatorName} - Break ${breakCount + 1} - ${formatDuration(durationSeconds)}`
             };
 
             try {
@@ -538,14 +555,33 @@
             endBreakButton.disabled = true; // Disable end button during loading too
             resetLogButton.disabled = true;
 
+            // Load operator name first
             try {
-                // Get operator name if previously saved
                 const operatorNameCollection = collection(db, `artifacts/${appId}/users/${userId}/appState`);
                 const operatorStateDocs = await getDocs(operatorNameCollection);
                 if (!operatorStateDocs.empty && operatorStateDocs.docs[0].data().name) {
                     operatorName = operatorStateDocs.docs[0].data().name;
+                    statusMessage.textContent = `Hello ${operatorName}! Ready to start a break.`;
+                    statusMessage.classList.remove('text-gray-600');
+                    statusMessage.classList.add('text-indigo-700');
+                } else {
+                    statusMessage.textContent = "Ready to start a break!";
+                    statusMessage.classList.remove('text-indigo-700');
+                    statusMessage.classList.add('text-gray-600');
                 }
+            } catch (error) {
+                console.error("Error loading operator name:", error);
+                statusMessage.textContent = "Error loading operator name. Please refresh.";
+            }
 
+            // No longer listening to flaggedForReset on operator side,
+            // so button states are simpler.
+            startBreakButton.disabled = false;
+            endBreakButton.disabled = true;
+            resetLogButton.disabled = false;
+
+            // Then load private break logs
+            try {
                 const q = query(collection(db, `artifacts/${appId}/users/${userId}/breakLogs`));
                 const querySnapshot = await getDocs(q);
 
@@ -570,31 +606,18 @@
                 }
                 breakCount = maxBreakNumber; // Set breakCount to the highest existing break number
 
-                if (operatorName) {
-                    statusMessage.textContent = `Hello ${operatorName}! Ready to start a break.`;
-                    statusMessage.classList.remove('text-gray-600');
-                    statusMessage.classList.add('text-indigo-700');
-                } else {
-                    statusMessage.textContent = "Ready to start a break!";
-                    statusMessage.classList.remove('text-indigo-700');
-                    statusMessage.classList.add('text-gray-600');
-                }
-
             } catch (error) {
                 console.error("Error loading break logs:", error);
                 statusMessage.textContent = "Error loading data. Please refresh.";
-            } finally {
-                startBreakButton.disabled = false;
-                resetLogButton.disabled = false;
             }
         }
 
         /**
-         * Loads and displays active breaks for the supervisor dashboard.
+         * Loads and displays all break entries (active and ended, not hidden) for the supervisor dashboard.
          */
-        async function loadActiveBreaks() {
+        async function loadAllBreaksForSupervisor() {
             if (!userId) { // Supervisor also needs to be authenticated to read public data
-                console.warn("Supervisor not authenticated, cannot load active breaks.");
+                console.warn("Supervisor not authenticated, cannot load all breaks.");
                 return;
             }
 
@@ -602,64 +625,89 @@
                 const q = query(collection(db, `artifacts/${appId}/public_data/data/activeBreaks`));
                 const querySnapshot = await getDocs(q);
 
-                activeBreaksTableBody.innerHTML = ''; // Clear current display
+                allBreaksTableBody.innerHTML = ''; // Clear current display
                 if (querySnapshot.empty) {
-                    noActiveBreaksTableMessage.style.display = 'block';
+                    noAllBreaksTableMessage.style.display = 'block';
                 } else {
-                    noActiveBreaksTableMessage.style.display = 'none';
-                    const activeBreakEntries = [];
+                    noAllBreaksTableMessage.style.display = 'none';
+                    const allBreakEntries = [];
                     querySnapshot.forEach((doc) => {
                         const data = doc.data();
-                        const breakStartTime = new Date(data.breakStartTime);
-                        let durationSeconds = 0;
-                        let status = data.status || 'unknown'; // Default to 'unknown' if status is missing
+                        // Only include entries not hidden from supervisor
+                        if (data.hiddenFromSupervisor !== true) {
+                            const breakStartTime = new Date(data.breakStartTime);
+                            let durationSeconds = 0;
+                            let status = data.status || 'unknown';
 
-                        if (status === 'active') {
-                            const now = new Date();
-                            durationSeconds = Math.floor((now.getTime() - breakStartTime.getTime()) / 1000);
-                        } else if (status === 'ended' && data.durationSeconds !== undefined) {
-                            durationSeconds = data.durationSeconds;
+                            if (status === 'active') {
+                                const now = new Date();
+                                durationSeconds = Math.floor((now.getTime() - breakStartTime.getTime()) / 1000);
+                            } else if (status === 'ended' && data.durationSeconds !== undefined) {
+                                durationSeconds = data.durationSeconds;
+                            }
+
+                            allBreakEntries.push({
+                                operatorId: doc.id, // Store the operator's userId
+                                operatorName: data.operatorName,
+                                breakStartTime: breakStartTime.toLocaleTimeString(),
+                                breakEndTime: data.breakEndTime ? new Date(data.breakEndTime).toLocaleTimeString() : '-',
+                                durationDisplay: formatDuration(durationSeconds),
+                                status: status.charAt(0).toUpperCase() + status.slice(1), // Capitalize status
+                                hiddenFromSupervisor: data.hiddenFromSupervisor || false
+                            });
                         }
-
-                        const hours = Math.floor(durationSeconds / 3600);
-                        const minutes = Math.floor((durationSeconds % 3600) / 60);
-                        const seconds = durationSeconds % 60;
-
-                        activeBreakEntries.push({
-                            operatorName: data.operatorName,
-                            breakStartTime: breakStartTime.toLocaleTimeString(), // Format time
-                            breakEndTime: data.breakEndTime ? new Date(data.breakEndTime).toLocaleTimeString() : '-', // Format end time or show '-'
-                            durationDisplay: `${String(hours).padStart(2, '0')} hr ${String(minutes).padStart(2, '0')} mins ${String(seconds).padStart(2, '0')} secs`,
-                            status: status.charAt(0).toUpperCase() + status.slice(1) // Capitalize status
-                        });
                     });
                     // Sort by status (active first) then by operator name
-                    activeBreakEntries.sort((a, b) => {
-                        if (a.status === 'Active' && b.status !== 'Active') return -1;
-                        if (a.status !== 'Active' && b.status === 'Active') return 1;
+                    allBreakEntries.sort((a, b) => {
+                        // Prioritize active, then ended
+                        const statusOrder = { 'Active': 1, 'Ended': 2, 'Unknown': 3 };
+                        if (statusOrder[a.status] !== statusOrder[b.status]) {
+                            return statusOrder[a.status] - statusOrder[b.status];
+                        }
                         return a.operatorName.localeCompare(b.operatorName);
                     });
 
-                    activeBreakEntries.forEach(entry => {
-                        const row = activeBreaksTableBody.insertRow();
-                        // Add class based on status for visual distinction
-                        if (entry.status === 'Active') {
-                            row.classList.add('bg-green-100'); // Light green for active
-                        } else {
-                            row.classList.add('bg-gray-50'); // Default light gray for ended
-                        }
+                    allBreakEntries.forEach(entry => {
+                        const row = allBreaksTableBody.insertRow();
+                        let rowStatusClass = `status-${entry.status.toLowerCase()}`;
+                        row.classList.add(rowStatusClass);
+
+                        const actionCellContent = `<button class="bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded text-xs hide-from-dashboard-btn" data-operator-id="${entry.operatorId}">Hide from Dashboard</button>`;
+
                         row.innerHTML = `
                             <td>${entry.operatorName}</td>
                             <td>${entry.breakStartTime}</td>
                             <td>${entry.breakEndTime}</td>
                             <td>${entry.durationDisplay}</td>
                             <td>${entry.status}</td>
+                            <td>${actionCellContent}</td>
                         `;
+                    });
+
+                    // Add event listeners to new "Hide from Dashboard" buttons
+                    allBreaksTableBody.querySelectorAll('.hide-from-dashboard-btn').forEach(button => {
+                        button.addEventListener('click', (event) => hideBreakFromDashboard(event.target.dataset.operatorId));
                     });
                 }
             } catch (error) {
-                console.error("Error loading active breaks for supervisor:", error);
-                activeBreaksTableBody.innerHTML = `<tr><td colspan="5" class="text-red-500 text-center">Error loading active breaks.</td></tr>`;
+                console.error("Error loading all breaks for supervisor:", error);
+                allBreaksTableBody.innerHTML = `<tr><td colspan="6" class="text-red-500 text-center">Error loading breaks.</td></tr>`;
+            }
+        }
+
+        /**
+         * Hides an operator's public break log from the supervisor dashboard.
+         * @param {string} operatorId - The userId of the operator whose log to hide.
+         */
+        async function hideBreakFromDashboard(operatorId) {
+            try {
+                const publicBreakDocRef = doc(db, `artifacts/${appId}/public_data/data/activeBreaks`, operatorId);
+                await setDoc(publicBreakDocRef, { hiddenFromSupervisor: true }, { merge: true });
+                console.log(`Operator ${operatorId}'s break hidden from supervisor dashboard.`);
+                loadAllBreaksForSupervisor(); // Refresh supervisor dashboard to show updated status
+            } catch (error) {
+                console.error(`Error hiding break for operator ${operatorId}:`, error);
+                alert(`Failed to hide break. Check console for details. (Error: ${error.message})`);
             }
         }
 
@@ -680,6 +728,7 @@
 
         /**
          * Resets the break log and all related tracking variables, clearing Firestore data.
+         * This function is called by the operator on their own machine.
          */
         async function resetLog() {
             // Stop any active break timer first
@@ -697,7 +746,7 @@
                 currentNoBreaksMessage.style.display = 'block';
             }
 
-            // Delete all documents from Firestore collection
+            // Delete all documents from private Firestore collection
             try {
                 const q = query(collection(db, `artifacts/${appId}/users/${userId}/breakLogs`));
                 const querySnapshot = await getDocs(q);
@@ -706,21 +755,22 @@
                     batch.delete(doc.ref);
                 });
                 await batch.commit();
-                console.log("Break logs deleted from Firestore successfully!");
+                console.log("Private break logs deleted from Firestore successfully!");
 
                 // Also delete operator name state
                 const operatorStateDocRef = doc(db, `artifacts/${appId}/users/${userId}/appState`, 'operator');
                 await deleteDoc(operatorStateDocRef);
                 console.log("Operator name state deleted from Firestore successfully!");
 
-                // Also remove active break status from public log if it exists
+                // Also remove active break status from public log (this will clear the flagged status too)
+                // This delete ensures the entry is completely removed from the public collection,
+                // including if it was previously hidden.
                 await deleteDoc(doc(db, `artifacts/${appId}/public_data/data/activeBreaks`, userId));
-                console.log("Active break status removed from public log during reset.");
-
+                console.log("Public active break status removed during reset.");
 
             } catch (error) {
                 console.error("Error resetting log in Firestore:", error);
-                // Optionally show an error message to the user
+                alert(`Failed to reset log. Check console for details. (Error: ${error.message})`);
             }
 
             // Reset all tracking variables
@@ -730,13 +780,8 @@
             operatorNameInput.value = ''; // Clear input field in operator modal
             breakCount = 0; // Reset break counter
 
-            statusMessage.textContent = "Ready to start a break!";
-            statusMessage.classList.remove('text-indigo-700', 'text-green-700');
-            statusMessage.classList.add('text-gray-600');
-
-            // Re-enable start break button, disable end break button
-            startBreakButton.disabled = false;
-            endBreakButton.disabled = true;
+            // Re-initialize operator view state after reset
+            loadBreakLogs();
         }
 
         // Event Listeners
@@ -752,13 +797,12 @@
                 operatorName = name;
                 hideOperatorModal();
                 await saveOperatorName(name); // Save operator name to Firestore
-                // After confirming name, immediately start the break if the user clicked startBreak
                 if (!isBreakActive) {
                     startBreak();
                 }
             } else {
                 console.log("Operator name cannot be empty.");
-                // Optionally, provide visual feedback to the user that name is required
+                alert("Operator name cannot be empty. Please enter your name.");
             }
         });
 
@@ -824,7 +868,7 @@
         window.onload = function() {
             updateBreakDisplay(); // Ensure timer shows 00:00:00 initially
 
-            // Authenticate anonymously and then load data
+            // Authenticate anonymously and then proceed to load data
             onAuthStateChanged(auth, async (user) => {
                 if (user) {
                     userId = user.uid;
@@ -840,6 +884,9 @@
                     } catch (error) {
                         console.error("Error authenticating. Please refresh.", error);
                         statusMessage.textContent = "Error authenticating. Please refresh.";
+                        startBreakButton.disabled = true;
+                        endBreakButton.disabled = true;
+                        resetLogButton.disabled = true;
                     }
                 }
             });
