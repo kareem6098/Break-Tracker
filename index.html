@@ -612,6 +612,11 @@
         async function loadBreakLogs() {
             if (!userId) {
                 console.warn("User not authenticated yet, cannot load logs.");
+                // Ensure buttons are disabled if not authenticated
+                startBreakButton.disabled = true;
+                endBreakButton.disabled = true;
+                resetLogButton.disabled = true;
+                statusMessage.textContent = "Please wait for authentication...";
                 return;
             }
 
@@ -627,6 +632,9 @@
                 if (operatorNameDoc.exists() && operatorNameDoc.data().name) {
                     operatorName = operatorNameDoc.data().name;
                     operatorNameInput.value = operatorName; // Pre-fill the modal input
+                    console.log("Operator name loaded:", operatorName);
+                } else {
+                    console.log("No operator name found for this user.");
                 }
             } catch (error) {
                 console.error("Error loading operator name:", error);
@@ -638,6 +646,7 @@
                 const publicBreakDocRef = doc(db, `artifacts/${appId}/public/data/activeBreaks`, userId);
                 const publicBreakDoc = await getDoc(publicBreakDocRef);
 
+                console.log("Public break doc exists:", publicBreakDoc.exists());
                 if (publicBreakDoc.exists() && publicBreakDoc.data().status === 'active') {
                     const data = publicBreakDoc.data();
                     breakStartTime = new Date(data.breakStartTime);
@@ -653,6 +662,7 @@
                     if (breakTimerIntervalId) clearInterval(breakTimerIntervalId); // Clear any old interval
                     breakTimerIntervalId = setInterval(updateBreakDisplay, 1000);
                     updateBreakDisplay(); // Initial update
+                    console.log("Active break found. UI updated to active state.");
                 } else {
                     // No active break found in public data for this user
                     isBreakActive = false;
@@ -668,6 +678,7 @@
                     startBreakButton.disabled = false; // Enable start button
                     endBreakButton.disabled = true; // Disable end button
                     resetLogButton.disabled = false;
+                    console.log("No active break found. UI updated to ready state.");
 
                     if (breakTimerIntervalId) { // Ensure timer is stopped if no active break
                         clearInterval(breakTimerIntervalId);
@@ -676,7 +687,7 @@
                 }
             } catch (error) {
                 console.error("Error checking public break status on load:", error);
-                statusMessage.textContent = "Authentication error. Please refresh.";
+                statusMessage.textContent = "Error loading status. Please refresh.";
                 startBreakButton.disabled = true;
                 endBreakButton.disabled = true;
                 resetLogButton.disabled = true;
