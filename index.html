@@ -10,7 +10,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, setDoc, writeBatch, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, setDoc, writeBatch, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global Firebase variables (provided by Canvas environment)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -48,6 +48,7 @@
         window.firebaseSetDoc = setDoc; // Expose setDoc for updating active breaks
         window.firebaseWriteBatch = writeBatch;
         window.firebaseOnSnapshot = onSnapshot; // Expose onSnapshot for real-time updates
+        window.firebaseGetDoc = getDoc; // Expose getDoc for single document fetches
         window.currentAppId = appId; // Expose appId
     </script>
 
@@ -111,7 +112,6 @@
         .supervisor-table .status-ended {
             background-color: #f3f4f6; /* Tailwind gray-100 */
         }
-        /* Removed status-flagged as it's no longer needed for visual distinction */
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
@@ -279,12 +279,13 @@
 
 
         // Timer variables
-        let currentBreakTime = 0; // Duration of the current break in seconds
+        let currentBreakTime = 0; // Duration of the current break in seconds (recalculated from breakStartTime)
         let breakTimerIntervalId = null; // Interval ID for the break timer
         let operatorName = ''; // Stores the operator's name
-        let breakStartTime = null; // Date object when the current break started
+        let breakStartTime = null; // Date object when the current break started (pulled from Firestore)
         let isBreakActive = false; // True if currently on break
         let breakCount = 0; // Counter for breaks taken by the current operator
+
         let supervisorDashboardIntervalId = null; // Interval for updating supervisor dashboard
 
         const CORRECT_PASSWORD = "8801102285"; // Password for reset log and supervisor login
@@ -302,9 +303,10 @@
         const orderBy = window.firebaseOrderBy;
         const deleteDoc = window.firebaseDeleteDoc;
         const doc = window.firebaseDoc;
-        const setDoc = window.firebaseSetDoc; // Use setDoc for updating active breaks
+        const setDoc = window.firebaseSetDoc;
         const writeBatch = window.firebaseWriteBatch;
-        const onSnapshot = window.firebaseOnSnapshot; // Use onSnapshot for real-time updates
+        const onSnapshot = window.firebaseOnSnapshot;
+        const getDoc = window.firebaseGetDoc;
         const appId = window.currentAppId;
 
         let userId = null; // Will be set after Firebase auth
@@ -323,8 +325,16 @@
 
         /**
          * Updates the break timer display (hours, minutes, and seconds).
+         * This function now recalculates currentBreakTime based on breakStartTime
+         * to be resilient to browser throttling/pauses.
          */
         function updateBreakDisplay() {
+            if (isBreakActive && breakStartTime) {
+                const now = new Date();
+                currentBreakTime = Math.floor((now.getTime() - breakStartTime.getTime()) / 1000);
+            } else if (!isBreakActive) {
+                currentBreakTime = 0; // Ensure it's zero when not active
+            }
             hoursDisplay.textContent = String(Math.floor(currentBreakTime / 3600)).padStart(2, '0');
             minutesDisplay.textContent = String(Math.floor((currentBreakTime % 3600) / 60)).padStart(2, '0');
             secondsDisplay.textContent = String(currentBreakTime % 60).padStart(2, '0');
@@ -427,10 +437,7 @@
             updateBreakDisplay(); // Update display to 00:00:00
 
             // Start the break timer
-            breakTimerIntervalId = setInterval(() => {
-                currentBreakTime++;
-                updateBreakDisplay();
-            }, 1000);
+            breakTimerIntervalId = setInterval(updateBreakDisplay, 1000); // Timer now calls updateBreakDisplay
 
             statusMessage.textContent = `${operatorName} is on break...`;
             statusMessage.classList.remove('text-indigo-700', 'text-gray-600'); // Clean up old statuses
@@ -471,7 +478,7 @@
             await logBreakPrivate(breakEndTime, durationSeconds);
 
             isBreakActive = false;
-            breakStartTime = null;
+            breakStartTime = null; // Clear break start time
 
             // Reset timer display to 00:00:00 immediately
             currentBreakTime = 0;
@@ -542,7 +549,7 @@
         }
 
         /**
-         * Loads existing break logs from Firestore (for the current user).
+         * Loads existing break logs from Firestore (for the current user) and sets up the initial UI state.
          */
         async function loadBreakLogs() {
             if (!userId) {
@@ -552,35 +559,75 @@
 
             statusMessage.textContent = "Loading break data...";
             startBreakButton.disabled = true;
-            endBreakButton.disabled = true; // Disable end button during loading too
+            endBreakButton.disabled = true;
             resetLogButton.disabled = true;
 
-            // Load operator name first
+            // 1. Load operator name first
             try {
                 const operatorNameCollection = collection(db, `artifacts/${appId}/users/${userId}/appState`);
                 const operatorStateDocs = await getDocs(operatorNameCollection);
                 if (!operatorStateDocs.empty && operatorStateDocs.docs[0].data().name) {
                     operatorName = operatorStateDocs.docs[0].data().name;
-                    statusMessage.textContent = `Hello ${operatorName}! Ready to start a break.`;
-                    statusMessage.classList.remove('text-gray-600');
-                    statusMessage.classList.add('text-indigo-700');
-                } else {
-                    statusMessage.textContent = "Ready to start a break!";
-                    statusMessage.classList.remove('text-indigo-700');
-                    statusMessage.classList.add('text-gray-600');
                 }
             } catch (error) {
                 console.error("Error loading operator name:", error);
-                statusMessage.textContent = "Error loading operator name. Please refresh.";
+                // Continue even if name fails to load, will prompt user later
             }
 
-            // No longer listening to flaggedForReset on operator side,
-            // so button states are simpler.
-            startBreakButton.disabled = false;
-            endBreakButton.disabled = true;
-            resetLogButton.disabled = false;
+            // 2. Check public active break status for this user
+            try {
+                const publicBreakDocRef = doc(db, `artifacts/${appId}/public_data/data/activeBreaks`, userId);
+                const publicBreakDoc = await getDoc(publicBreakDocRef);
 
-            // Then load private break logs
+                if (publicBreakDoc.exists() && publicBreakDoc.data().status === 'active') {
+                    const data = publicBreakDoc.data();
+                    breakStartTime = new Date(data.breakStartTime);
+                    isBreakActive = true;
+                    statusMessage.textContent = `${operatorName || 'Operator'} is on break...`;
+                    statusMessage.classList.remove('text-indigo-700', 'text-gray-600');
+                    statusMessage.classList.add('text-green-700');
+                    startBreakButton.disabled = true;
+                    endBreakButton.disabled = false;
+                    resetLogButton.disabled = false; // Always allow reset
+
+                    // Start the timer interval
+                    if (breakTimerIntervalId) clearInterval(breakTimerIntervalId); // Clear any old interval
+                    breakTimerIntervalId = setInterval(updateBreakDisplay, 1000);
+                    updateBreakDisplay(); // Initial update
+                } else {
+                    // No active break found in public data for this user
+                    isBreakActive = false;
+                    breakStartTime = null; // Ensure no stale start time
+                    currentBreakTime = 0; // Reset timer display
+                    updateBreakDisplay();
+
+                    if (operatorName) {
+                        statusMessage.textContent = `Hello ${operatorName}! Ready to start a break.`;
+                        statusMessage.classList.remove('text-gray-600', 'text-green-700');
+                        statusMessage.classList.add('text-indigo-700');
+                    } else {
+                        statusMessage.textContent = "Ready to start a break!";
+                        statusMessage.classList.remove('text-indigo-700', 'text-green-700');
+                        statusMessage.classList.add('text-gray-600');
+                    }
+                    startBreakButton.disabled = false;
+                    endBreakButton.disabled = true;
+                    resetLogButton.disabled = false;
+
+                    if (breakTimerIntervalId) { // Ensure timer is stopped if no active break
+                        clearInterval(breakTimerIntervalId);
+                        breakTimerIntervalId = null;
+                    }
+                }
+            } catch (error) {
+                console.error("Error checking public break status on load:", error);
+                statusMessage.textContent = "Error loading status. Please refresh.";
+                startBreakButton.disabled = true;
+                endBreakButton.disabled = true;
+                resetLogButton.disabled = true;
+            }
+
+            // 3. Load private break logs (this can happen in parallel or after UI state is set)
             try {
                 const q = query(collection(db, `artifacts/${appId}/users/${userId}/breakLogs`));
                 const querySnapshot = await getDocs(q);
@@ -607,8 +654,8 @@
                 breakCount = maxBreakNumber; // Set breakCount to the highest existing break number
 
             } catch (error) {
-                console.error("Error loading break logs:", error);
-                statusMessage.textContent = "Error loading data. Please refresh.";
+                console.error("Error loading private break logs:", error);
+                // Status message for overall app status is already set by public break check
             }
         }
 
@@ -797,6 +844,7 @@
                 operatorName = name;
                 hideOperatorModal();
                 await saveOperatorName(name); // Save operator name to Firestore
+                // After saving name, check if a break should be started (only if not already active)
                 if (!isBreakActive) {
                     startBreak();
                 }
