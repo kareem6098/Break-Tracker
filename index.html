@@ -451,9 +451,10 @@
             supervisorView.classList.remove('hidden');
             loadAllBreaksForSupervisor(); // Load all breaks for supervisor dashboard
             // Start interval to refresh supervisor dashboard data
+            // Changed refresh rate to 30 seconds (30000 milliseconds)
             supervisorDashboardIntervalId = setInterval(() => {
                 loadAllBreaksForSupervisor();
-            }, 5000);
+            }, 30000); // Changed to 30 seconds
         }
 
         /**
