@@ -160,21 +160,23 @@
         </div>
         <h1 class="text-4xl font-extrabold text-gray-800 mb-6">Supervisor Dashboard</h1>
 
-        <h2 class="text-2xl font-bold text-gray-800 mb-4">Currently On Break</h2>
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">All Breaks Logged</h2>
         <div class="break-log-container">
             <table class="supervisor-table">
                 <thead>
                     <tr>
                         <th>Operator</th>
-                        <th>Break Start Time</th>
-                        <th>Current Duration</th>
+                        <th>Start Time</th>
+                        <th>End Time</th>
+                        <th>Duration</th>
+                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody id="active-breaks-table-body">
                     <!-- Active breaks will be loaded here -->
                 </tbody>
             </table>
-            <p class="text-gray-500 text-center mt-4" id="no-active-breaks-table-message">No operators currently on break.</p>
+            <p class="text-gray-500 text-center mt-4" id="no-active-breaks-table-message">No breaks logged yet.</p>
         </div>
     </div>
 
@@ -419,6 +421,7 @@
                 await setDoc(doc(db, `artifacts/${appId}/public_data/data/activeBreaks`, userId), {
                     operatorName: operatorName,
                     breakStartTime: breakStartTime.toISOString(),
+                    status: 'active', // Mark as active
                     userId: userId // Store userId for security rules
                 });
                 console.log("Active break status updated in public log.");
@@ -436,7 +439,12 @@
             clearInterval(breakTimerIntervalId); // Stop the break timer
             breakTimerIntervalId = null;
 
-            await logBreak(); // Log the current break to Firestore (private log)
+            const breakEndTime = new Date();
+            const durationMs = breakEndTime.getTime() - breakStartTime.getTime();
+            const durationSeconds = Math.floor(durationMs / 1000);
+
+            // Log the current break to Firestore (private log)
+            await logBreakPrivate(breakEndTime, durationSeconds);
 
             isBreakActive = false;
             breakStartTime = null;
@@ -453,24 +461,24 @@
             startBreakButton.disabled = false;
             endBreakButton.disabled = true;
 
-            // Remove entry from public active breaks collection
+            // Update entry in public active breaks collection instead of removing
             try {
-                await deleteDoc(doc(db, `artifacts/${appId}/public_data/data/activeBreaks`, userId));
-                console.log("Active break status removed from public log.");
+                await setDoc(doc(db, `artifacts/${appId}/public_data/data/activeBreaks`, userId), {
+                    breakEndTime: breakEndTime.toISOString(),
+                    durationSeconds: durationSeconds,
+                    status: 'ended' // Mark as ended
+                }, { merge: true }); // Use merge to only update specified fields
+                console.log("Active break status updated to ended in public log.");
             } catch (error) {
-                console.error("Error removing public active breaks:", error);
+                console.error("Error updating public active breaks:", error);
             }
         }
 
         /**
-         * Logs the completed break session to Firestore and updates display.
+         * Logs the completed break session to Firestore (private log) and updates display.
          */
-        async function logBreak() {
+        async function logBreakPrivate(breakEndTime, durationSeconds) {
             if (!breakStartTime) return; // Should not happen if isBreakActive is true
-
-            const breakEndTime = new Date();
-            const durationMs = breakEndTime.getTime() - breakStartTime.getTime();
-            const durationSeconds = Math.floor(durationMs / 1000);
 
             const hours = Math.floor(durationSeconds / 3600);
             const minutes = Math.floor((durationSeconds % 3600) / 60);
@@ -527,6 +535,7 @@
 
             statusMessage.textContent = "Loading break data...";
             startBreakButton.disabled = true;
+            endBreakButton.disabled = true; // Disable end button during loading too
             resetLogButton.disabled = true;
 
             try {
@@ -602,8 +611,15 @@
                     querySnapshot.forEach((doc) => {
                         const data = doc.data();
                         const breakStartTime = new Date(data.breakStartTime);
-                        const now = new Date();
-                        const durationSeconds = Math.floor((now.getTime() - breakStartTime.getTime()) / 1000);
+                        let durationSeconds = 0;
+                        let status = data.status || 'unknown'; // Default to 'unknown' if status is missing
+
+                        if (status === 'active') {
+                            const now = new Date();
+                            durationSeconds = Math.floor((now.getTime() - breakStartTime.getTime()) / 1000);
+                        } else if (status === 'ended' && data.durationSeconds !== undefined) {
+                            durationSeconds = data.durationSeconds;
+                        }
 
                         const hours = Math.floor(durationSeconds / 3600);
                         const minutes = Math.floor((durationSeconds % 3600) / 60);
@@ -612,24 +628,38 @@
                         activeBreakEntries.push({
                             operatorName: data.operatorName,
                             breakStartTime: breakStartTime.toLocaleTimeString(), // Format time
-                            durationDisplay: `${String(hours).padStart(2, '0')} hr ${String(minutes).padStart(2, '0')} mins ${String(seconds).padStart(2, '0')} secs`
+                            breakEndTime: data.breakEndTime ? new Date(data.breakEndTime).toLocaleTimeString() : '-', // Format end time or show '-'
+                            durationDisplay: `${String(hours).padStart(2, '0')} hr ${String(minutes).padStart(2, '0')} mins ${String(seconds).padStart(2, '0')} secs`,
+                            status: status.charAt(0).toUpperCase() + status.slice(1) // Capitalize status
                         });
                     });
-                    // Sort by operator name for consistent display
-                    activeBreakEntries.sort((a, b) => a.operatorName.localeCompare(b.operatorName));
+                    // Sort by status (active first) then by operator name
+                    activeBreakEntries.sort((a, b) => {
+                        if (a.status === 'Active' && b.status !== 'Active') return -1;
+                        if (a.status !== 'Active' && b.status === 'Active') return 1;
+                        return a.operatorName.localeCompare(b.operatorName);
+                    });
 
                     activeBreakEntries.forEach(entry => {
                         const row = activeBreaksTableBody.insertRow();
+                        // Add class based on status for visual distinction
+                        if (entry.status === 'Active') {
+                            row.classList.add('bg-green-100'); // Light green for active
+                        } else {
+                            row.classList.add('bg-gray-50'); // Default light gray for ended
+                        }
                         row.innerHTML = `
                             <td>${entry.operatorName}</td>
                             <td>${entry.breakStartTime}</td>
+                            <td>${entry.breakEndTime}</td>
                             <td>${entry.durationDisplay}</td>
+                            <td>${entry.status}</td>
                         `;
                     });
                 }
             } catch (error) {
                 console.error("Error loading active breaks for supervisor:", error);
-                activeBreaksTableBody.innerHTML = `<tr><td colspan="3" class="text-red-500 text-center">Error loading active breaks.</td></tr>`;
+                activeBreaksTableBody.innerHTML = `<tr><td colspan="5" class="text-red-500 text-center">Error loading active breaks.</td></tr>`;
             }
         }
 
