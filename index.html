@@ -1,1096 +1,1281 @@
 <!DOCTYPE html>
+
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Break Tracker</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, setDoc, writeBatch, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global Firebase variables (provided by Canvas environment)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    <meta charset="UTF-8">
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-        // Expose to global scope for use in main script
-        window.firebaseApp = app;
-        window.firebaseDb = db;
-        window.firebaseAuth = auth;
-        window.firebaseSignInAnonymously = signInAnonymously;
-        window.firebaseSignInWithCustomToken = signInWithCustomToken;
-        window.firebaseOnAuthStateChanged = onAuthStateChanged;
-        window.firebaseCollection = collection;
-        window.firebaseAddDoc = addDoc;
-        window.firebaseGetDocs = getDocs;
-        window.firebaseQuery = query;
-        window.firebaseOrderBy = orderBy;
-        window.firebaseDeleteDoc = deleteDoc;
-        window.firebaseDoc = doc;
-        window.firebaseSetDoc = setDoc; // Expose setDoc for updating active breaks
-        window.firebaseWriteBatch = writeBatch;
-        window.firebaseOnSnapshot = onSnapshot; // Expose onSnapshot for real-time updates
-        window.firebaseGetDoc = getDoc; // Expose getDoc for single document fetches
-        window.currentAppId = appId; // Expose appId
-    </script>
+    <title>Break Tracker</title>
 
-    <style>
-        /* Custom styles for the Inter font and overall look */
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6; /* Light gray background */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 1rem; /* Add some padding for smaller screens */
-        }
-        /* Ensure the main container grows and shrinks responsively */
-        .container {
-            max-width: 500px; /* Max width for desktop */
-            width: 100%; /* Full width on smaller screens */
-        }
-        /* Style for the time display */
-        .time-display {
-            font-variant-numeric: tabular-nums; /* Ensures numbers align vertically */
-        }
-        /* Hide scrollbar for break log but allow scrolling */
-        .break-log-container {
-            max-height: 200px; /* Limit height */
-            overflow-y: auto; /* Enable vertical scrolling */
-            -ms-overflow-style: none;  /* IE and Edge */
-            scrollbar-width: none;  /* Firefox */
-        }
-        .break-log-container::-webkit-scrollbar {
-            display: none; /* Chrome, Safari, Opera */
-        }
-        /* Table styling for supervisor dashboard and personal log */
-        .supervisor-table, .personal-log-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1rem;
-            font-size: 0.9rem; /* Slightly smaller font for tables */
-        }
-        .supervisor-table th, .supervisor-table td,
-        .personal-log-table th, .personal-log-table td {
-            padding: 0.75rem;
-            border: 1px solid #e2e8f0; /* Tailwind gray-200 */
-            text-align: left;
-        }
-        .supervisor-table th, .personal-log-table th {
-            background-color: #edf2f7; /* Tailwind gray-100 */
-            font-weight: 600;
-            color: #4a5568; /* Tailwind gray-700 */
-        }
-        .supervisor-table tbody tr:nth-child(odd),
-        .personal-log-table tbody tr:nth-child(odd) {
-            background-color: #f7fafc; /* Tailwind gray-50 */
-        }
-        .supervisor-table tbody tr:hover,
-        .personal-log-table tbody tr:hover {
-            background-color: #ebf4ff; /* Tailwind blue-50 */
-        }
-        .supervisor-table .status-active {
-            background-color: #d1fae5; /* Tailwind green-100 */
-        }
-        .supervisor-table .status-ended {
-            background-color: #f3f4f6; /* Tailwind gray-100 */
-        }
-    </style>
+    <!-- Tailwind CSS CDN -->
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Firebase SDKs -->
+
+    <script type="module">
+
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, setDoc, writeBatch, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+
+
+        // Global Firebase variables (provided by Canvas environment)
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // YOUR FIREBASE CONFIGURATION - REPLACE THIS BLOCK WITH YOUR ACTUAL CONFIG IF IT'S DIFFERENT
+
+        const firebaseConfig = {
+
+          apiKey: "AIzaSyAuVMBEuRsFIcllvr0pfLq7rBMfrhUHjq8",
+
+          authDomain: "breaktracker-ce082.firebaseapp.com",
+
+          projectId: "breaktracker-ce082",
+
+          storageBucket: "breaktracker-ce082.firebasestorage.app",
+
+          messagingSenderId: "1088975926809",
+
+          appId: "1:1088975926809:web:b4ff3d7257e8bd3cca9c88",
+
+          measurementId: "G-RPJS2W27KD"
+
+        };
+
+        // END OF YOUR FIREBASE CONFIGURATION
+
+
+
+        // Initialize Firebase
+
+        const app = initializeApp(firebaseConfig);
+
+        const db = getFirestore(app);
+
+        const auth = getAuth(app);
+
+
+
+        // Expose to global scope for use in main script
+
+        window.firebaseApp = app;
+
+        window.firebaseDb = db;
+
+        window.firebaseAuth = auth;
+
+        window.firebaseSignInAnonymously = signInAnonymously;
+
+        window.firebaseSignInWithCustomToken = signInWithCustomToken;
+
+        window.firebaseOnAuthStateChanged = onAuthStateChanged;
+
+        window.firebaseCollection = collection;
+
+        window.firebaseAddDoc = addDoc;
+
+        window.firebaseGetDocs = getDocs;
+
+        window.firebaseQuery = query;
+
+        window.firebaseOrderBy = orderBy;
+
+        window.firebaseDeleteDoc = deleteDoc;
+
+        window.firebaseDoc = doc;
+
+        window.firebaseSetDoc = setDoc; // Expose setDoc for updating active breaks
+
+        window.firebaseWriteBatch = writeBatch;
+
+        window.firebaseOnSnapshot = onSnapshot; // Expose onSnapshot for real-time updates
+
+        window.firebaseGetDoc = getDoc; // Expose getDoc for single document fetches
+
+        window.currentAppId = appId; // Expose appId
+
+    </script>
+
+
+
+    <style>
+
+        /* Custom styles for the Inter font and overall look */
+
+        body {
+
+            font-family: 'Inter', sans-serif;
+
+            background-color: #f3f4f6; /* Light gray background */
+
+            display: flex;
+
+            justify-content: center;
+
+            align-items: center;
+
+            min-height: 100vh;
+
+            margin: 0;
+
+            padding: 1rem; /* Add some padding for smaller screens */
+
+        }
+
+        /* Ensure the main container grows and shrinks responsively */
+
+        .container {
+
+            max-width: 500px; /* Max width for desktop */
+
+            width: 100%; /* Full width on smaller screens */
+
+        }
+
+        /* Style for the time display */
+
+        .time-display {
+
+            font-variant-numeric: tabular-nums; /* Ensures numbers align vertically */
+
+        }
+
+        /* Hide scrollbar for break log but allow scrolling */
+
+        .break-log-container {
+
+            max-height: 200px; /* Limit height */
+
+            overflow-y: auto; /* Enable vertical scrolling */
+
+            -ms-overflow-style: none;  /* IE and Edge */
+
+            scrollbar-width: none;  /* Firefox */
+
+        }
+
+        .break-log-container::-webkit-scrollbar {
+
+            display: none; /* Chrome, Safari, Opera */
+
+        }
+
+        /* Table styling for supervisor dashboard */
+
+        .supervisor-table {
+
+            width: 100%;
+
+            border-collapse: collapse;
+
+            margin-top: 1rem;
+
+            font-size: 0.9rem; /* Slightly smaller font for tables */
+
+        }
+
+        .supervisor-table th, .supervisor-table td {
+
+            padding: 0.75rem;
+
+            border: 1px solid #e2e8f0; /* Tailwind gray-200 */
+
+            text-align: left;
+
+        }
+
+        .supervisor-table th {
+
+            background-color: #edf2f7; /* Tailwind gray-100 */
+
+            font-weight: 600;
+
+            color: #4a5568; /* Tailwind gray-700 */
+
+        }
+
+        .supervisor-table tbody tr:nth-child(odd) {
+
+            background-color: #f7fafc; /* Tailwind gray-50 */
+
+        }
+
+        .supervisor-table tbody tr:hover {
+
+            background-color: #ebf4ff; /* Tailwind blue-50 */
+
+        }
+
+        .supervisor-table .status-active {
+
+            background-color: #d1fae5; /* Tailwind green-100 */
+
+        }
+
+        .supervisor-table .status-ended {
+
+            background-color: #f3f4f6; /* Tailwind gray-100 */
+
+        }
+
+    </style>
+
 </head>
+
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <!-- Operator View -->
-    <div id="operator-view" class="container bg-white p-8 rounded-xl shadow-lg text-center border border-gray-200">
-        <!-- Supervisor Login Button - Moved inside the container and aligned right -->
-        <div class="text-right mb-4">
-            <button id="supervisor-login-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 text-sm">
-                Supervisor Login
-            </button>
-        </div>
-
-        <h1 class="text-4xl font-extrabold text-gray-800 mb-6">Break Tracker</h1>
-
-        <!-- Timer Display (HH hr:MM mins:SS secs) - Now for current break duration -->
-        <div class="time-display text-7xl font-bold text-indigo-700 mb-8 tracking-tight">
-            <span id="hours">00</span><span class="text-5xl"> hr:</span><span id="minutes">00</span><span class="text-5xl"> mins:</span><span id="seconds">00</span><span class="text-5xl"> secs</span>
-        </div>
-
-        <!-- Status Message -->
-        <p id="status-message" class="text-xl font-semibold text-gray-600 mb-8">Loading...</p>
-
-        <!-- Break Control Buttons -->
-        <div class="flex flex-wrap justify-center gap-4 mb-8">
-            <button id="start-break-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105" disabled>
-                Start Break
-            </button>
-            <button id="end-break-button" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105" disabled>
-                End Break
-            </button>
-        </div>
-
-        <!-- Reset Log Button -->
-        <div class="flex justify-center mt-4">
-            <button id="reset-log-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105" disabled>
-                Reset Log
-            </button>
-        </div>
-
-        <!-- Break Log -->
-        <div class="mt-8 pt-6 border-t border-gray-200">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">Break Log</h2>
-            <div class="break-log-container bg-gray-50 p-4 rounded-md text-left text-gray-700 text-sm">
-                <table class="personal-log-table">
-                    <thead>
-                        <tr>
-                            <th>S.No</th>
-                            <th>Name</th>
-                            <th>Break Start Time</th>
-                            <th>Break End Time</th>
-                            <th>Break Taken</th>
-                        </tr>
-                    </thead>
-                    <tbody id="personal-break-log-body">
-                        <!-- Personal break logs will be loaded here -->
-                    </tbody>
-                </table>
-                <p class="text-gray-500 text-center mt-4" id="no-breaks-message">No breaks logged yet.</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Supervisor Dashboard View -->
-    <div id="supervisor-view" class="container bg-white p-8 rounded-xl shadow-lg text-center border border-gray-200 hidden">
-        <div class="text-right mb-4">
-            <button id="back-to-operator-view-button" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 text-sm">
-                Back to Operator View
-            </button>
-        </div>
-        <h1 class="text-4xl font-extrabold text-gray-800 mb-6">Supervisor Dashboard</h1>
-
-        <h2 class="text-2xl font-bold text-gray-800 mb-4">All Breaks Logged</h2>
-        <div class="break-log-container mb-8">
-            <table class="supervisor-table">
-                <thead>
-                    <tr>
-                        <th>S.No</th> <!-- Added S.No column -->
-                        <th>Operator</th>
-                        <th>Start Time</th>
-                        <th>End Time</th>
-                        <th>Duration</th>
-                        <th>Status</th>
-                        <th>Action</th> <!-- Column for action -->
-                    </tr>
-                </thead>
-                <tbody id="all-breaks-table-body">
-                    <!-- All breaks will be loaded here -->
-                </tbody>
-            </table>
-            <p class="text-gray-500 text-center mt-4" id="no-all-breaks-table-message">No breaks logged yet by any operator.</p>
-        </div>
-    </div>
-
-
-    <!-- Operator Name Modal -->
-    <div id="operator-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-8 rounded-xl shadow-lg text-center w-96 max-w-xs sm:max-w-sm">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">Enter Operator Name</h2>
-            <input type="text" id="operator-name-input" placeholder="Your Name" autocomplete="off" class="w-full p-3 border border-gray-300 rounded-md mb-4 text-center focus:ring-indigo-500 focus:border-indigo-500">
-            <div class="flex justify-center gap-4">
-                <button id="confirm-name-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
-                    Confirm
-                </button>
-                <button id="cancel-name-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
-                    Cancel
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Password Modal for Reset Log -->
-    <div id="password-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-8 rounded-xl shadow-lg text-center w-96 max-w-xs sm:max-w-sm">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">Enter Supervisor Password</h2>
-            <input type="password" id="password-input" placeholder="Password" class="w-full p-3 border border-gray-300 rounded-md mb-4 text-center focus:ring-indigo-500 focus:border-indigo-500">
-            <p id="password-error-message" class="text-red-500 text-sm mb-4 hidden">Incorrect password. Please try again.</p>
-            <div class="flex justify-center gap-4">
-                <button id="confirm-password-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
-                    Confirm
-                </button>
-                <button id="cancel-password-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
-                    Cancel
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Supervisor Login Modal -->
-    <div id="supervisor-login-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-8 rounded-xl shadow-lg text-center w-96 max-w-xs sm:max-w-sm">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">Supervisor Login</h2>
-            <input type="password" id="supervisor-password-input" placeholder="Password" class="w-full p-3 border border-gray-300 rounded-md mb-4 text-center focus:ring-indigo-500 focus:border-indigo-500">
-            <p id="supervisor-login-error-message" class="text-red-500 text-sm mb-4 hidden">Incorrect password. Please try again.</p>
-            <div class="flex justify-center gap-4">
-                <button id="confirm-supervisor-login-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
-                    Login
-                </button>
-                <button id="cancel-supervisor-login-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
-                    Cancel
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- End Break Confirmation Modal -->
-    <div id="end-break-confirm-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 hidden">
-        <div class="bg-white p-8 rounded-xl shadow-lg text-center w-96 max-w-xs sm:max-w-sm">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">End Break?</h2>
-            <p class="text-gray-700 mb-6">Are you sure you want to end your current break?</p>
-            <div class="flex justify-center gap-4">
-                <button id="confirm-end-break-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
-                    Yes, End Break
-                </button>
-                <button id="cancel-end-break-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
-                    No, Continue
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <script type="module">
-        // Get DOM elements for Operator View
-        const operatorView = document.getElementById('operator-view');
-        const hoursDisplay = document.getElementById('hours');
-        const minutesDisplay = document.getElementById('minutes');
-        const secondsDisplay = document.getElementById('seconds');
-        const statusMessage = document.getElementById('status-message');
-        const startBreakButton = document.getElementById('start-break-button');
-        const endBreakButton = document.getElementById('end-break-button');
-        const personalBreakLogBody = document.getElementById('personal-break-log-body'); // Changed from breakLog
-        const noBreaksMessage = document.getElementById('no-breaks-message');
-        const operatorModal = document.getElementById('operator-modal');
-        const operatorNameInput = document.getElementById('operator-name-input');
-        const confirmNameButton = document.getElementById('confirm-name-button');
-        const cancelNameButton = document.getElementById('cancel-name-button');
-        const resetLogButton = document.getElementById('reset-log-button');
-        const passwordModal = document.getElementById('password-modal');
-        const passwordInput = document.getElementById('password-input');
-        const confirmPasswordButton = document.getElementById('confirm-password-button');
-        const cancelPasswordButton = document.getElementById('cancel-password-button');
-        const passwordErrorMessage = document.getElementById('password-error-message');
-
-        // Get DOM elements for Supervisor View
-        const supervisorView = document.getElementById('supervisor-view');
-        const supervisorLoginButton = document.getElementById('supervisor-login-button');
-        const supervisorLoginModal = document.getElementById('supervisor-login-modal');
-        const supervisorPasswordInput = document.getElementById('supervisor-password-input');
-        const confirmSupervisorLoginButton = document.getElementById('confirm-supervisor-login-button');
-        const cancelSupervisorLoginButton = document.getElementById('cancel-supervisor-login-button');
-        const supervisorLoginErrorMessage = document.getElementById('supervisor-login-error-message');
-        const backToOperatorViewButton = document.getElementById('back-to-operator-view-button'); // New button
-
-        // Supervisor Dashboard elements
-        const allBreaksTableBody = document.getElementById('all-breaks-table-body');
-        const noAllBreaksTableMessage = document.getElementById('no-all-breaks-table-message');
-
-        // End Break Confirmation Modal elements
-        const endBreakConfirmModal = document.getElementById('end-break-confirm-modal');
-        const confirmEndBreakButton = document.getElementById('confirm-end-break-button');
-        const cancelEndBreakButton = document.getElementById('cancel-end-break-button');
-
-
-        // Timer variables
-        let currentBreakTime = 0; // Duration of the current break in seconds (recalculated from breakStartTime)
-        let breakTimerIntervalId = null; // Interval ID for the break timer
-        let operatorName = ''; // Stores the operator's name
-        let breakStartTime = null; // Date object when the current break started (pulled from Firestore)
-        let isBreakActive = false; // True if currently on break
-        let breakCount = 0; // Counter for breaks taken by the current operator
-
-        let supervisorDashboardIntervalId = null; // Interval for updating supervisor dashboard
-
-        const CORRECT_PASSWORD = "8801102285"; // Password for reset log and supervisor login
-
-        // Firebase variables from global scope
-        const db = window.firebaseDb;
-        const auth = window.firebaseAuth;
-        const signInAnonymously = window.firebaseSignInAnonymously;
-        const signInWithCustomToken = window.firebaseSignInWithCustomToken;
-        const onAuthStateChanged = window.firebaseOnAuthStateChanged;
-        const collection = window.firebaseCollection;
-        const addDoc = window.firebaseAddDoc;
-        const getDocs = window.firebaseGetDocs;
-        const query = window.firebaseQuery;
-        const orderBy = window.firebaseOrderBy;
-        const deleteDoc = window.firebaseDeleteDoc;
-        const doc = window.firebaseDoc;
-        const setDoc = window.firebaseSetDoc;
-        const writeBatch = window.firebaseWriteBatch;
-        const onSnapshot = window.firebaseOnSnapshot;
-        const getDoc = window.firebaseGetDoc;
-        const appId = window.currentAppId;
-
-        let userId = null; // Will be set after Firebase auth
-
-        /**
-         * Formats duration from seconds into HH hr:MM mins:SS secs.
-         * @param {number} totalSeconds - The total duration in seconds.
-         * @returns {string} Formatted duration string.
-         */
-        function formatDuration(totalSeconds) {
-            const hours = Math.floor(totalSeconds / 3600);
-            const minutes = Math.floor((totalSeconds % 3600) / 60);
-            const seconds = totalSeconds % 60;
-            return `${String(hours).padStart(2, '0')} hr ${String(minutes).padStart(2, '0')} mins ${String(seconds).padStart(2, '0')} secs`;
-        }
-
-        /**
-         * Updates the break timer display (hours, minutes, and seconds).
-         * This function now recalculates currentBreakTime based on breakStartTime
-         * to be resilient to browser throttling/pauses.
-         */
-        function updateBreakDisplay() {
-            if (isBreakActive && breakStartTime) {
-                const now = new Date();
-                currentBreakTime = Math.floor((now.getTime() - breakStartTime.getTime()) / 1000);
-            } else if (!isBreakActive) {
-                currentBreakTime = 0; // Ensure it's zero when not active
-            }
-            hoursDisplay.textContent = String(Math.floor(currentBreakTime / 3600)).padStart(2, '0');
-            minutesDisplay.textContent = String(Math.floor((currentBreakTime % 3600) / 60)).padStart(2, '0');
-            secondsDisplay.textContent = String(currentBreakTime % 60).padStart(2, '0');
-        }
-
-        /**
-         * Shows the operator name input modal.
-         */
-        function showOperatorModal() {
-            operatorNameInput.value = ''; // Clear the input field
-            operatorModal.classList.remove('hidden');
-            operatorNameInput.focus(); // Focus on the input field
-        }
-
-        /**
-         * Hides the operator name input modal.
-         */
-        function hideOperatorModal() {
-            operatorModal.classList.add('hidden');
-        }
-
-        /**
-         * Shows the password input modal (for Reset Log).
-         */
-        function showPasswordModal() {
-            passwordModal.classList.remove('hidden');
-            passwordInput.value = ''; // Clear previous input
-            passwordErrorMessage.classList.add('hidden'); // Hide error message
-            passwordInput.focus(); // Focus on the input field
-        }
-
-        /**
-         * Hides the password input modal (for Reset Log).
-         */
-        function hidePasswordModal() {
-            passwordModal.classList.add('hidden');
-        }
-
-        /**
-         * Shows the supervisor login modal.
-         */
-        function showSupervisorLoginModal() {
-            supervisorLoginModal.classList.remove('hidden');
-            supervisorPasswordInput.value = ''; // Clear previous input
-            supervisorLoginErrorMessage.classList.add('hidden'); // Hide error message
-            supervisorPasswordInput.focus(); // Focus on the input field
-        }
-
-        /**
-         * Hides the supervisor login modal.
-         */
-        function hideSupervisorLoginModal() {
-            supervisorLoginModal.classList.add('hidden');
-        }
-
-        /**
-         * Shows the end break confirmation modal.
-         */
-        function showEndBreakConfirmModal() {
-            endBreakConfirmModal.classList.remove('hidden');
-        }
-
-        /**
-         * Hides the end break confirmation modal.
-         */
-        function hideEndBreakConfirmModal() {
-            endBreakConfirmModal.classList.add('hidden');
-        }
-
-        /**
-         * Switches to the supervisor dashboard view.
-         */
-        function switchToSupervisorView() {
-            operatorView.classList.add('hidden');
-            supervisorView.classList.remove('hidden');
-            loadAllBreaksForSupervisor(); // Load all breaks for supervisor dashboard
-            // Start interval to refresh supervisor dashboard data
-            supervisorDashboardIntervalId = setInterval(() => {
-                loadAllBreaksForSupervisor();
-            }, 5000);
-        }
-
-        /**
-         * Switches back to the operator view.
-         */
-        function switchToOperatorView() {
-            supervisorView.classList.add('hidden');
-            operatorView.classList.remove('hidden');
-            if (supervisorDashboardIntervalId) {
-                clearInterval(supervisorDashboardIntervalId);
-                supervisorDashboardIntervalId = null;
-            }
-            allBreaksTableBody.innerHTML = ''; // Clear dashboard display
-            noAllBreaksTableMessage.style.display = 'block'; // Show no breaks message
-            // Re-initialize operator view state after returning
-            loadBreakLogs();
-        }
-
-        /**
-         * Initiates the break after operator name is confirmed.
-         * This function contains the core logic for starting the timer and updating Firestore.
-         */
-        async function initiateBreak() {
-            breakStartTime = new Date();
-            isBreakActive = true;
-            currentBreakTime = 0; // Reset break timer for new break
-            updateBreakDisplay(); // Update display to 00:00:00
-
-            // Start the break timer
-            breakTimerIntervalId = setInterval(updateBreakDisplay, 1000); // Timer now calls updateBreakDisplay
-
-            statusMessage.textContent = `${operatorName} is on break...`;
-            statusMessage.classList.remove('text-indigo-700', 'text-gray-600'); // Clean up old statuses
-            statusMessage.classList.add('text-green-700');
-
-            startBreakButton.disabled = true;
-            endBreakButton.disabled = false;
-
-            // Add entry to public active breaks collection
-            try {
-                // Set the current active break status for this user
-                await setDoc(doc(db, `artifacts/${appId}/public/data/activeBreaks`, userId), {
-                    operatorName: operatorName,
-                    breakStartTime: breakStartTime.toISOString(),
-                    status: 'active', // Mark as active
-                    userId: userId, // Store userId for security rules
-                    hiddenFromSupervisor: false // Initialize flag for hiding from supervisor (only relevant for activeBreaks)
-                });
-                console.log("Active break status updated in public log.");
-            } catch (error) {
-                console.error("Error updating public active breaks:", error);
-            }
-        }
-
-        /**
-         * Starts a break, always prompting for operator name if not already active.
-         */
-        async function startBreak() {
-            if (isBreakActive) return; // Prevent starting a new break if one is already active
-
-            // Always show the operator name modal before starting a break
-            showOperatorModal();
-            // The rest of the logic will be handled by the confirmNameButton's click listener
-        }
-
-        /**
-         * Ends a break and logs its duration.
-         * This function now shows a confirmation modal first.
-         */
-        async function endBreak() {
-            if (!isBreakActive) return; // Only end break if one is active
-            showEndBreakConfirmModal(); // Show confirmation modal
-        }
-
-        /**
-         * Confirms and proceeds with ending the break.
-         */
-        async function confirmEndBreak() {
-            hideEndBreakConfirmModal(); // Hide the confirmation modal
-
-            clearInterval(breakTimerIntervalId); // Stop the break timer
-            breakTimerIntervalId = null;
-
-            const breakEndTime = new Date();
-            const durationMs = breakEndTime.getTime() - breakStartTime.getTime();
-            const durationSeconds = Math.floor(durationMs / 1000);
-
-            // Log the current break to Firestore (private log for the operator)
-            await logBreakPrivate(breakEndTime, durationSeconds);
-
-            // Add this completed break to the public historical log for supervisor
-            try {
-                await addDoc(collection(db, `artifacts/${appId}/public/data/all_breaks_history`), {
-                    operatorName: operatorName,
-                    userId: userId,
-                    breakStartTime: breakStartTime.toISOString(),
-                    breakEndTime: breakEndTime.toISOString(),
-                    durationSeconds: durationSeconds,
-                    status: 'ended', // Always 'ended' for this history collection
-                    timestamp: breakEndTime.toISOString(), // For sorting in supervisor view
-                    hiddenFromSupervisor: false // Default to visible, supervisor can hide
-                });
-                console.log("Completed break added to public history log.");
-            } catch (error) {
-                console.error("Error adding completed break to public history:", error);
-            }
-
-            isBreakActive = false;
-            breakStartTime = null; // Clear break start time
-
-            // Reset timer display to 00:00:00 immediately
-            currentBreakTime = 0;
-            updateBreakDisplay();
-
-            // Update status message
-            statusMessage.textContent = `Ready to start a break!`;
-            statusMessage.classList.remove('text-green-700');
-            statusMessage.classList.add('text-gray-600');
-
-            startBreakButton.disabled = false;
-            endBreakButton.disabled = true;
-
-            // Update entry in public active breaks collection to 'ended'
-            try {
-                await setDoc(doc(db, `artifacts/${appId}/public/data/activeBreaks`, userId), {
-                    breakEndTime: breakEndTime.toISOString(),
-                    durationSeconds: durationSeconds,
-                    status: 'ended' // Mark as ended in the active status collection
-                }, { merge: true }); // Use merge to only update specified fields
-                console.log("Active break status updated to ended in public log.");
-            } catch (error) {
-                console.error("Error updating public active breaks:", error);
-            }
-        }
-
-        /**
-         * Logs the completed break session to Firestore (private log) and updates display.
-         */
-        async function logBreakPrivate(breakEndTime, durationSeconds) {
-            if (!breakStartTime) return; // Should not happen if isBreakActive is true
-
-            const logEntryData = {
-                operatorName: operatorName,
-                breakNumber: breakCount + 1, // Increment for the log entry
-                durationSeconds: durationSeconds,
-                timestamp: breakEndTime.toISOString(), // Store as ISO string for sorting
-                // Removed 'display' field as it's no longer used for rendering directly
-            };
-
-            try {
-                // Save to Firestore (private log)
-                await addDoc(collection(db, `artifacts/${appId}/users/${userId}/breakLogs`), logEntryData);
-                console.log("Break logged to Firestore successfully!");
-                // After logging, reload the entire personal break log to ensure S.No and order are correct
-                await loadBreakLogs();
-            } catch (error) {
-                console.error("Error logging break to Firestore:", error);
-                // Optionally show an  error message to the user
-            }
-        }
-
-        /**
-         * Loads existing break logs from Firestore (for the current user) and sets up the initial UI state.
-         * This now renders the logs in a table format.
-         */
-        async function loadBreakLogs() {
-            if (!userId) {
-                console.warn("User not authenticated yet, cannot load logs.");
-                return;
-            }
-
-            statusMessage.textContent = "Loading break data...";
-            startBreakButton.disabled = true;
-            endBreakButton.disabled = true;
-            resetLogButton.disabled = true;
-
-            // 1. Load operator name first (still useful for displaying past logs)
-            try {
-                const operatorNameDocRef = doc(db, `artifacts/${appId}/users/${userId}/appState`, 'operatorName');
-                const operatorNameDoc = await getDoc(operatorNameDocRef);
-                if (operatorNameDoc.exists() && operatorNameDoc.data().name) {
-                    operatorName = operatorNameDoc.data().name;
-                    operatorNameInput.value = operatorName; // Pre-fill the modal input
-                }
-            } catch (error) {
-                console.error("Error loading operator name:", error);
-                // Continue even if name fails to load, will prompt user later
-            }
-
-            // 2. Check public active break status for this user
-            try {
-                const publicBreakDocRef = doc(db, `artifacts/${appId}/public/data/activeBreaks`, userId);
-                const publicBreakDoc = await getDoc(publicBreakDocRef);
-
-                if (publicBreakDoc.exists() && publicBreakDoc.data().status === 'active') {
-                    const data = publicBreakDoc.data();
-                    breakStartTime = new Date(data.breakStartTime);
-                    isBreakActive = true;
-                    statusMessage.textContent = `${operatorName || 'Operator'} is on break...`; // Use operatorName if available
-                    statusMessage.classList.remove('text-indigo-700', 'text-gray-600');
-                    statusMessage.classList.add('text-green-700');
-                    startBreakButton.disabled = true;
-                    endBreakButton.disabled = false;
-                    resetLogButton.disabled = false; // Always allow reset
-
-                    // Start the timer interval
-                    if (breakTimerIntervalId) clearInterval(breakTimerIntervalId); // Clear any old interval
-                    breakTimerIntervalId = setInterval(updateBreakDisplay, 1000);
-                    updateBreakDisplay(); // Initial update
-                } else {
-                    // No active break found in public data for this user
-                    isBreakActive = false;
-                    breakStartTime = null; // Ensure no stale start time
-                    currentBreakTime = 0; // Reset timer display
-                    updateBreakDisplay();
-
-                    // Always show "Ready to start a break!" as name will be asked on click
-                    statusMessage.textContent = "Ready to start a break!";
-                    statusMessage.classList.remove('text-indigo-700', 'text-green-700');
-                    statusMessage.classList.add('text-gray-600');
-
-                    startBreakButton.disabled = false; // Enable start button
-                    endBreakButton.disabled = true; // Disable end button
-                    resetLogButton.disabled = false;
-
-                    if (breakTimerIntervalId) { // Ensure timer is stopped if no active break
-                        clearInterval(breakTimerIntervalId);
-                        breakTimerIntervalId = null;
-                    }
-                }
-            } catch (error) {
-                console.error("Error checking public break status on load:", error);
-                statusMessage.textContent = "Authentication error. Please refresh.";
-                startBreakButton.disabled = true;
-                endBreakButton.disabled = true;
-                resetLogButton.disabled = true;
-            }
-
-            // 3. Load private break logs (this can happen in parallel or after UI state is set)
-            try {
-                const q = collection(db, `artifacts/${appId}/users/${userId}/breakLogs`);
-                const querySnapshot = await getDocs(q);
-
-                personalBreakLogBody.innerHTML = ''; // Clear current display
-                let maxBreakNumber = 0;
-                const breaks = [];
-
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    breaks.push(data);
-                    if (data.breakNumber && data.breakNumber > maxBreakNumber) {
-                        maxBreakNumber = data.breakNumber;
-                    }
-                });
-
-                // Sort breaks by timestamp in ascending order for S.No (chronological)
-                breaks.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-                if (breaks.length === 0) {
-                    noBreaksMessage.style.display = 'block';
-                } else {
-                    noBreaksMessage.style.display = 'none';
-                    breaks.forEach((entry, index) => {
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td>${index + 1}</td>
-                            <td>${entry.operatorName || 'N/A'}</td>
-                            <td>${new Date(entry.timestamp).toLocaleTimeString()}</td>
-                            <td>${new Date(entry.timestamp).toLocaleTimeString()}</td>
-                            <td>${formatDuration(entry.durationSeconds)}</td>
-                        `;
-                        personalBreakLogBody.appendChild(row);
-                    });
-                }
-                breakCount = maxBreakNumber; // Set breakCount based on the highest existing break number
-                console.log("Private break logs loaded successfully. Break count:", breakCount);
-
-            } catch (error) {
-                console.error("Error loading private break logs:", error);
-                statusMessage.textContent = "Error loading past breaks. Please refresh.";
-            }
-        }
-
-        /**
-         * Resets the entire break log for the current operator after password confirmation.
-         * This deletes all private break logs and updates the public active break status.
-         */
-        async function resetLog() {
-            showPasswordModal();
-        }
-
-        /**
-         * Deletes all private break logs for the current user and updates their public active break status.
-         * This no longer hides the last entry from the supervisor dashboard.
-         */
-        async function deleteAllBreakLogs() {
-            if (!userId) {
-                console.error("Cannot reset log: User not authenticated.");
-                return;
-            }
-
-            try {
-                // 1. Delete all private break logs for the current user
-                const batch = writeBatch(db);
-                const q = collection(db, `artifacts/${appId}/users/${userId}/breakLogs`);
-                const querySnapshot = await getDocs(q);
-                querySnapshot.forEach((doc) => {
-                    batch.delete(doc.ref);
-                });
-                await batch.commit();
-                console.log("All private break logs deleted successfully.");
-
-                // 2. Update the user's entry in the public activeBreaks collection
-                // Mark as ended but DO NOT hide from supervisor.
-                const publicBreakDocRef = doc(db, `artifacts/${appId}/public/data/activeBreaks`, userId);
-                await setDoc(publicBreakDocRef, {
-                    status: 'ended',
-                    // Removed: hiddenFromSupervisor: true, // This was causing the issue
-                    breakEndTime: new Date().toISOString(), // Mark end time
-                    durationSeconds: 0 // Reset duration
-                }, { merge: true });
-                console.log("Public active break status updated to ended (not hidden by operator reset).");
-
-                // Reset local state and UI
-                personalBreakLogBody.innerHTML = '';
-                noBreaksMessage.style.display = 'block';
-                breakCount = 0;
-                isBreakActive = false;
-                breakStartTime = null;
-                currentBreakTime = 0;
-                updateBreakDisplay();
-                statusMessage.textContent = "Ready to start a break!";
-                statusMessage.classList.remove('text-green-700');
-                statusMessage.classList.add('text-gray-600');
-                startBreakButton.disabled = false;
-                endBreakButton.disabled = true;
-
-            } catch (error) {
-                console.error("Error resetting break log:", error);
-                // Optionally show an error message to the user
-            }
-        }
-
-        /**
-         * Loads all breaks from the public history collection for the supervisor dashboard.
-         */
-        async function loadAllBreaksForSupervisor() {
-            if (!userId) { // Supervisor also needs to be authenticated
-                console.warn("Supervisor not authenticated yet, cannot load all breaks.");
-                return;
-            }
-
-            try {
-                // Query the new all_breaks_history collection
-                const q = collection(db, `artifacts/${appId}/public/data/all_breaks_history`);
-                const querySnapshot = await getDocs(q);
-
-                allBreaksTableBody.innerHTML = ''; // Clear current display
-                const allBreaks = [];
-
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    // Only show breaks that are not explicitly hidden by the supervisor
-                    if (!data.hiddenFromSupervisor) {
-                        allBreaks.push({ id: doc.id, ...data });
-                    }
-                });
-
-                if (allBreaks.length === 0) {
-                    noAllBreaksTableMessage.style.display = 'block';
-                    // Adjust colspan for "no breaks" message if S.No column is added
-                    noAllBreaksTableMessage.colSpan = 7; // Assuming 7 columns now (S.No + 6 existing)
-                } else {
-                    noAllBreaksTableMessage.style.display = 'none';
-
-                    // Sort breaks by timestamp (breakStartTime for chronological order) in ascending order
-                    allBreaks.sort((a, b) => {
-                        const timeA = a.breakStartTime ? new Date(a.breakStartTime).getTime() : 0;
-                        const timeB = b.breakStartTime ? new Date(b.breakStartTime).getTime() : 0;
-                        return timeA - timeB; // Ascending order for chronological
-                    });
-
-                    // Fetch current active breaks separately to display them live
-                    // These should generally appear at the bottom if sorted chronologically by start time
-                    const activeBreaksQuery = collection(db, `artifacts/${appId}/public/data/activeBreaks`);
-                    const activeBreaksSnapshot = await getDocs(activeBreaksQuery);
-                    const currentActiveBreaks = {};
-                    activeBreaksSnapshot.forEach(doc => {
-                        const data = doc.data();
-                        if (data.status === 'active' && !data.hiddenFromSupervisor) {
-                            currentActiveBreaks[doc.id] = data;
-                        }
-                    });
-
-                    // Combine and display
-                    const displayedUserIds = new Set(); // To prevent duplicate display of active breaks
-                    let sNoCounter = 1;
-
-                    // Display historical (ended) breaks first, in chronological order
-                    allBreaks.forEach(breakData => {
-                        // Only add if this break is not currently active (handled by activeBreaks loop below)
-                        // Or if it's an ended break that might have the same userId as an active one
-                        if (breakData.status === 'ended') {
-                            const row = document.createElement('tr');
-                            row.classList.add('status-ended');
-
-                            const startTime = breakData.breakStartTime ? new Date(breakData.breakStartTime).toLocaleTimeString() : 'N/A';
-                            const endTime = breakData.breakEndTime ? new Date(breakData.breakEndTime).toLocaleTimeString() : 'N/A';
-                            const duration = breakData.durationSeconds !== undefined ? formatDuration(breakData.durationSeconds) : 'N/A';
-
-                            row.innerHTML = `
-                                <td>${sNoCounter++}</td>
-                                <td>${breakData.operatorName || 'Unknown Operator'}</td>
-                                <td>${startTime}</td>
-                                <td>${endTime}</td>
-                                <td>${duration}</td>
-                                <td>Ended</td>
-                                <td>
-                                    <button class="hide-break-supervisor-btn bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded-md text-xs ml-1" data-breakid="${breakData.id}">Hide</button>
-                                </td>
-                            `;
-                            allBreaksTableBody.appendChild(row);
-                        }
-                    });
-
-                    // Display active breaks last, as they are the most recent "events"
-                    // Sort active breaks by start time to maintain consistent ordering if multiple are active
-                    const sortedActiveBreaks = Object.values(currentActiveBreaks).sort((a, b) => new Date(a.breakStartTime).getTime() - new Date(b.breakStartTime).getTime());
-
-                    sortedActiveBreaks.forEach(breakData => {
-                        const row = document.createElement('tr');
-                        row.classList.add('status-active');
-
-                        const startTime = breakData.breakStartTime ? new Date(breakData.breakStartTime).toLocaleTimeString() : 'N/A';
-                        const now = new Date();
-                        const activeDurationSeconds = Math.floor((now.getTime() - new Date(breakData.breakStartTime).getTime()) / 1000);
-                        const duration = formatDuration(activeDurationSeconds);
-                        const endTime = 'Ongoing'; // Indicate it's still active
-
-                        row.innerHTML = `
-                            <td>${sNoCounter++}</td>
-                            <td>${breakData.operatorName || 'Unknown Operator'}</td>
-                            <td>${startTime}</td>
-                            <td>${endTime}</td>
-                            <td>${duration}</td>
-                            <td><span class="text-green-600 font-bold">Active</span></td>
-                            <td>
-                                <button class="end-break-supervisor-btn bg-orange-500 hover:bg-orange-600 text-white py-1 px-2 rounded-md text-xs" data-userid="${breakData.userId}" data-breakid="${breakData.id}">End</button>
-                                <button class="hide-break-supervisor-btn bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded-md text-xs ml-1" data-breakid="${breakData.id}">Hide</button>
-                            </td>
-                        `;
-                        allBreaksTableBody.appendChild(row);
-                    });
-
-
-                    // Add event listeners to the dynamically created buttons
-                    document.querySelectorAll('.end-break-supervisor-btn').forEach(button => {
-                        button.onclick = (event) => endBreakFromSupervisor(event.target.dataset.userid, event.target.dataset.breakid);
-                    });
-                    document.querySelectorAll('.hide-break-supervisor-btn').forEach(button => {
-                        button.onclick = (event) => hideBreakFromSupervisor(event.target.dataset.breakid);
-                    });
-                }
-            } catch (error) {
-                console.error("Error loading all breaks for supervisor:", error);
-                allBreaksTableBody.innerHTML = `<tr><td colspan="7" class="text-red-500 text-center">Error loading data.</td></tr>`; // Updated colspan
-                noAllBreaksTableMessage.style.display = 'none';
-            }
-        }
-
-        /**
-         * Ends an active break for a specific user from the supervisor dashboard.
-         * This updates the active break status and adds a new entry to the historical log.
-         * @param {string} targetUserId - The userId of the operator whose break to end.
-         * @param {string} activeBreakDocId - The document ID of the active break in the activeBreaks collection.
-         */
-        async function endBreakFromSupervisor(targetUserId, activeBreakDocId) {
-            try {
-                const publicActiveBreakDocRef = doc(db, `artifacts/${appId}/public/data/activeBreaks`, activeBreakDocId);
-                const publicActiveBreakDoc = await getDoc(publicActiveBreakDocRef);
-
-                if (publicActiveBreakDoc.exists() && publicActiveBreakDoc.data().status === 'active') {
-                    const data = publicActiveBreakDoc.data();
-                    const breakStartTimeForUser = new Date(data.breakStartTime);
-                    const breakEndTimeForUser = new Date();
-                    const durationMs = breakEndTimeForUser.getTime() - breakStartTimeForUser.getTime();
-                    const durationSeconds = Math.floor(durationMs / 1000);
-
-                    // Update the active break status to ended
-                    await setDoc(publicActiveBreakDocRef, {
-                        breakEndTime: breakEndTimeForUser.toISOString(),
-                        durationSeconds: durationSeconds,
-                        status: 'ended'
-                    }, { merge: true });
-                    console.log(`Break for user ${targetUserId} ended by supervisor in activeBreaks.`);
-
-                    // Add this completed break to the public historical log
-                    await addDoc(collection(db, `artifacts/${appId}/public/data/all_breaks_history`), {
-                        operatorName: data.operatorName,
-                        userId: targetUserId,
-                        breakStartTime: data.breakStartTime,
-                        breakEndTime: breakEndTimeForUser.toISOString(),
-                        durationSeconds: durationSeconds,
-                        status: 'ended',
-                        timestamp: breakEndTimeForUser.toISOString(),
-                        hiddenFromSupervisor: false
-                    });
-                    console.log(`Completed break for user ${targetUserId} added to all_breaks_history.`);
-
-                    loadAllBreaksForSupervisor(); // Refresh dashboard
-                } else {
-                    console.warn(`Attempted to end break for user ${targetUserId}, but no active break found or it's already ended.`);
-                }
-            } catch (error) {
-                console.error(`Error ending break for user ${targetUserId}:`, error);
-            }
-        }
-
-        /**
-         * Hides a break entry from the supervisor dashboard by marking it in the historical collection.
-         * @param {string} breakDocId - The document ID of the break in the all_breaks_history collection to hide.
-         */
-        async function hideBreakFromSupervisor(breakDocId) {
-            try {
-                const historyBreakDocRef = doc(db, `artifacts/${appId}/public/data/all_breaks_history`, breakDocId);
-                await setDoc(historyBreakDocRef, {
-                    hiddenFromSupervisor: true
-                }, { merge: true });
-                console.log(`Break with ID ${breakDocId} hidden by supervisor.`);
-                loadAllBreaksForSupervisor(); // Refresh dashboard
-            } catch (error) {
-                console.error(`Error hiding break with ID ${breakDocId}:`, error);
-            }
-        }
-
-
-        // --- Event Listeners ---
-
-        // Modified endBreak button to show confirmation modal
-        endBreakButton.addEventListener('click', endBreak);
-        // New event listeners for the confirmation modal buttons
-        confirmEndBreakButton.addEventListener('click', confirmEndBreak);
-        cancelEndBreakButton.addEventListener('click', hideEndBreakConfirmModal);
-
-
-        startBreakButton.addEventListener('click', startBreak);
-        resetLogButton.addEventListener('click', resetLog);
-
-        confirmNameButton.addEventListener('click', async () => {
-            const name = operatorNameInput.value.trim();
-            if (name) {
-                operatorName = name;
-                hideOperatorModal();
-                statusMessage.textContent = `Welcome, ${operatorName}!`;
-                statusMessage.classList.remove('text-gray-600');
-                statusMessage.classList.add('text-indigo-700');
-
-                // Save operator name to Firestore
-                try {
-                    await setDoc(doc(db, `artifacts/${appId}/users/${userId}/appState`, 'operatorName'), { name: operatorName });
-                    console.log("Operator name saved to Firestore.");
-                } catch (error) {
-                    console.error("Error saving operator name:", error);
-                }
-
-                initiateBreak(); // Proceed to start the break
-            } else {
-                // Optionally, provide feedback that name is required
-                console.warn("Operator name cannot be empty.");
-            }
-        });
-
-        cancelNameButton.addEventListener('click', () => {
-            hideOperatorModal();
-            // If the user cancels, allow them to start a break again
-            startBreakButton.disabled = false;
-            endBreakButton.disabled = true;
-            statusMessage.textContent = "Ready to start a break!";
-            statusMessage.classList.remove('text-green-700');
-            statusMessage.classList.add('text-gray-600');
-        });
-
-        confirmPasswordButton.addEventListener('click', async () => {
-            const enteredPassword = passwordInput.value;
-            if (enteredPassword === CORRECT_PASSWORD) {
-                hidePasswordModal();
-                passwordErrorMessage.classList.add('hidden');
-                await deleteAllBreakLogs(); // Proceed with deleting logs
-            } else {
-                passwordErrorMessage.classList.remove('hidden');
-            }
-        });
-
-        cancelPasswordButton.addEventListener('click', () => {
-            hidePasswordModal();
-            passwordErrorMessage.classList.add('hidden');
-        });
-
-        supervisorLoginButton.addEventListener('click', showSupervisorLoginModal);
-
-        confirmSupervisorLoginButton.addEventListener('click', () => {
-            const enteredPassword = supervisorPasswordInput.value;
-            if (enteredPassword === CORRECT_PASSWORD) {
-                hideSupervisorLoginModal();
-                supervisorLoginErrorMessage.classList.add('hidden');
-                switchToSupervisorView();
-            } else {
-                supervisorLoginErrorMessage.classList.remove('hidden');
-            }
-        });
-
-        cancelSupervisorLoginButton.addEventListener('click', () => {
-            hideSupervisorLoginModal();
-            supervisorLoginErrorMessage.classList.add('hidden');
-        });
-
-        backToOperatorViewButton.addEventListener('click', switchToOperatorView);
-
-
-        // --- Firebase Authentication Initialization ---
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                // User is signed in.
-                userId = user.uid;
-                console.log("Firebase authenticated with UID:", userId);
-                await loadBreakLogs(); // Load logs and set UI state after auth
-            } else {
-                // User is signed out, sign in anonymously
-                try {
-                    // Use __initial_auth_token if available, otherwise sign in anonymously
-                    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                    if (initialAuthToken) {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                        console.log("Signed in with custom token.");
-                    } else {
-                        await signInAnonymously(auth);
-                        console.log("Signed in anonymously.");
-                    }
-                } catch (error) {
-                    console.error("Error during Firebase anonymous sign-in:", error);
-                    statusMessage.textContent = "Authentication error. Please refresh.";
-                    startBreakButton.disabled = true;
-                    endBreakButton.disabled = true;
-                    resetLogButton.disabled = true;
-                }
-            }
-        });
-    </script>
-</body>
-</html>
+
+    <!-- Operator View -->
+
+    <div id="operator-view" class="container bg-white p-8 rounded-xl shadow-lg text-center border border-gray-200">
+
+        <!-- Supervisor Login Button - Moved inside the container and aligned right -->
+
+        <div class="text-right mb-4">
+
+            <button id="supervisor-login-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 text-sm">
+
+                Supervisor Login
+
+            </button>
+
+        </div>
+
+
+
+        <h1 class="text-4xl font-extrabold text-gray-800 mb-6">Break Tracker</h1>
+
+
+
+        <!-- Timer Display (HH hr:MM mins:SS secs) - Now for current break duration -->
+
+        <div class="time-display text-7xl font-bold text-indigo-700 mb-8 tracking-tight">
+
+            <span id="hours">00</span><span class="text-5xl"> hr:</span><span id="minutes">00</span><span class="text-5xl"> mins:</span><span id="seconds">00</span><span class="text-5xl"> secs</span>
+
+        </div>
+
+
+
+        <!-- Status Message -->
+
+        <p id="status-message" class="text-xl font-semibold text-gray-600 mb-8">Loading...</p>
+
+
+
+        <!-- Break Control Buttons -->
+
+        <div class="flex flex-wrap justify-center gap-4 mb-8">
+
+            <button id="start-break-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105" disabled>
+
+                Start Break
+
+            </button>
+
+            <button id="end-break-button" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105" disabled>
+
+                End Break
+
+            </button>
+
+        </div>
+
+
+
+        <!-- Reset Log Button -->
+
+        <div class="flex justify-center mt-4">
+
+            <button id="reset-log-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105" disabled>
+
+                Reset Log
+
+            </button>
+
+        </div>
+
+
+
+        <!-- Break Log -->
+
+        <div class="mt-8 pt-6 border-t border-gray-200">
+
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Break Log</h2>
+
+            <div id="break-log" class="break-log-container bg-gray-50 p-4 rounded-md text-left text-gray-700 text-sm">
+
+                <p class="text-gray-500 text-center" id="no-breaks-message">No breaks logged yet.</p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- Supervisor Dashboard View -->
+
+    <div id="supervisor-view" class="container bg-white p-8 rounded-xl shadow-lg text-center border border-gray-200 hidden">
+
+        <div class="text-right mb-4">
+
+            <button id="back-to-operator-view-button" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 text-sm">
+
+                Back to Operator View
+
+            </button>
+
+        </div>
+
+        <h1 class="text-4xl font-extrabold text-gray-800 mb-6">Supervisor Dashboard</h1>
+
+
+
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">All Breaks Logged</h2>
+
+        <div class="break-log-container mb-8">
+
+            <table class="supervisor-table">
+
+                <thead>
+
+                    <tr>
+
+                        <th>Operator</th>
+
+                        <th>Start Time</th>
+
+                        <th>End Time</th>
+
+                        <th>Duration</th>
+
+                        <th>Status</th>
+
+                        <th>Action</th> <!-- Column for action -->
+
+                    </tr>
+
+                </thead>
+
+                <tbody id="all-breaks-table-body">
+
+                    <!-- All breaks will be loaded here -->
+
+                </tbody>
+
+            </table>
+
+            <p class="text-gray-500 text-center mt-4" id="no-all-breaks-table-message">No breaks logged yet by any operator.</p>
+
+        </div>
+
+    </div>
+
+
+
+
+
+    <!-- Operator Name Modal -->
+
+    <div id="operator-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 hidden">
+
+        <div class="bg-white p-8 rounded-xl shadow-lg text-center w-96 max-w-xs sm:max-w-sm">
+
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Enter Operator Name</h2>
+
+            <input type="text" id="operator-name-input" placeholder="Your Name" class="w-full p-3 border border-gray-300 rounded-md mb-4 text-center focus:ring-indigo-500 focus:border-indigo-500">
+
+            <div class="flex justify-center gap-4">
+
+                <button id="confirm-name-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+
+                    Confirm
+
+                </button>
+
+                <button id="cancel-name-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+
+                    Cancel
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- Password Modal for Reset Log -->
+
+    <div id="password-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 hidden">
+
+        <div class="bg-white p-8 rounded-xl shadow-lg text-center w-96 max-w-xs sm:max-w-sm">
+
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Enter Supervisor Password</h2>
+
+            <input type="password" id="password-input" placeholder="Password" class="w-full p-3 border border-gray-300 rounded-md mb-4 text-center focus:ring-indigo-500 focus:border-indigo-500">
+
+            <p id="password-error-message" class="text-red-500 text-sm mb-4 hidden">Incorrect password. Please try again.</p>
+
+            <div class="flex justify-center gap-4">
+
+                <button id="confirm-password-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+
+                    Confirm
+
+                </button>
+
+                <button id="cancel-password-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+
+                    Cancel
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- Supervisor Login Modal -->
+
+    <div id="supervisor-login-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 hidden">
+
+        <div class="bg-white p-8 rounded-xl shadow-lg text-center w-96 max-w-xs sm:max-w-sm">
+
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Supervisor Login</h2>
+
+            <input type="password" id="supervisor-password-input" placeholder="Password" class="w-full p-3 border border-gray-300 rounded-md mb-4 text-center focus:ring-indigo-500 focus:border-indigo-500">
+
+            <p id="supervisor-login-error-message" class="text-red-500 text-sm mb-4 hidden">Incorrect password. Please try again.</p>
+
+            <div class="flex justify-center gap-4">
+
+                <button id="confirm-supervisor-login-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+
+                    Login
+
+                </button>
+
+                <button id="cancel-supervisor-login-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+
+                    Cancel
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <script type="module">
+
+        // Get DOM elements for Operator View
+
+        const operatorView = document.getElementById('operator-view');
+
+        const hoursDisplay = document.getElementById('hours');
+
+        const minutesDisplay = document.getElementById('minutes');
+
+        const secondsDisplay = document.getElementById('seconds');
+
+        const statusMessage = document.getElementById('status-message');
+
+        const startBreakButton = document.getElementById('start-break-button');
+
+        const endBreakButton = document.getElementById('end-break-button');
+
+        const breakLog = document.getElementById('break-log');
+
+        const noBreaksMessage = document.getElementById('no-breaks-message');
+
+        const operatorModal = document.getElementById('operator-modal');
+
+        const operatorNameInput = document.getElementById('operator-name-input');
+
+        const confirmNameButton = document.getElementById('confirm-name-button');
+
+        const cancelNameButton = document.getElementById('cancel-name-button');
+
+        const resetLogButton = document.getElementById('reset-log-button');
+
+        const passwordModal = document.getElementById('password-modal');
+
+        const passwordInput = document.getElementById('password-input');
+
+        const confirmPasswordButton = document.getElementById('confirm-password-button');
+
+        const cancelPasswordButton = document.getElementById('cancel-password-button');
+
+        const passwordErrorMessage = document.getElementById('password-error-message');
+
+
+
+        // Get DOM elements for Supervisor View
+
+        const supervisorView = document.getElementById('supervisor-view');
+
+        const supervisorLoginButton = document.getElementById('supervisor-login-button');
+
+        const supervisorLoginModal = document.getElementById('supervisor-login-modal');
+
+        const supervisorPasswordInput = document.getElementById('supervisor-password-input');
+
+        const confirmSupervisorLoginButton = document.getElementById('confirm-supervisor-login-button');
+
+        const cancelSupervisorLoginButton = document.getElementById('cancel-supervisor-login-button');
+
+        const supervisorLoginErrorMessage = document.getElementById('supervisor-login-error-message');
+
+        const backToOperatorViewButton = document.getElementById('back-to-operator-view-button'); // New button
+
+
+
+        // Supervisor Dashboard elements
+
+        const allBreaksTableBody = document.getElementById('all-breaks-table-body');
+
+        const noAllBreaksTableMessage = document.getElementById('no-all-breaks-table-message');
+
+
+
+
+
+        // Timer variables
+
+        let currentBreakTime = 0; // Duration of the current break in seconds (recalculated from breakStartTime)
+
+        let breakTimerIntervalId = null; // Interval ID for the break timer
+
+        let operatorName = ''; // Stores the operator's name
+
+        let breakStartTime = null; // Date object when the current break started (pulled from Firestore)
+
+        let isBreakActive = false; // True if currently on break
+
+        let breakCount = 0; // Counter for breaks taken by the current operator
+
+
+
+        let supervisorDashboardIntervalId = null; // Interval for updating supervisor dashboard
+
+
+
+        const CORRECT_PASSWORD = "8801102285"; // Password for reset log and supervisor login
+
+
+
+        // Firebase variables from global scope
+
+        const db = window.firebaseDb;
+
+        const auth = window.firebaseAuth;
+
+        const signInAnonymously = window.firebaseSignInAnonymously;
+
+        const signInWithCustomToken = window.firebaseSignInWithCustomToken;
+
+        const onAuthStateChanged = window.firebaseOnAuthStateChanged;
+
+        const collection = window.firebaseCollection;
+
+        const addDoc = window.firebaseAddDoc;
+
+        const getDocs = window.firebaseGetDocs;
+
+        const query = window.firebaseQuery;
+
+        const orderBy = window.firebaseOrderBy;
+
+        const deleteDoc = window.firebaseDeleteDoc;
+
+        const doc = window.firebaseDoc;
+
+        const setDoc = window.firebaseSetDoc;
+
+        const writeBatch = window.firebaseWriteBatch;
+
+        const onSnapshot = window.firebaseOnSnapshot;
+
+        const getDoc = window.firebaseGetDoc;
+
+        const appId = window.currentAppId;
+
+
+
+        let userId = null; // Will be set after Firebase auth
+
+
+
+        /**
+
+         * Formats duration from seconds into HH hr:MM mins:SS secs.
+
+         * @param {number} totalSeconds - The total duration in seconds.
+
+         * @returns {string} Formatted duration string.
+
+         */
+
+        function formatDuration(totalSeconds) {
+
+            const hours = Math.floor(totalSeconds / 3600);
+
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+            const seconds = totalSeconds % 60;
+
+            return `${String(hours).padStart(2, '0')} hr ${String(minutes).padStart(2, '0')} mins ${String(seconds).padStart(2, '0')} secs`;
+
+        }
+
+
+
+        /**
+
+         * Updates the break timer display (hours, minutes, and seconds).
+
+         * This function now recalculates currentBreakTime based on breakStartTime
+
+         * to be resilient to browser throttling/pauses.
+
+         */
+
+        function updateBreakDisplay() {
+
+            if (isBreakActive && breakStartTime) {
+
+                const now = new Date();
+
+                currentBreakTime = Math.floor((now.getTime() - breakStartTime.getTime()) / 1000);
+
+            } else if (!isBreakActive) {
+
+                currentBreakTime = 0; // Ensure it's zero when not active
+
+            }
+
+            hoursDisplay.textContent = String(Math.floor(currentBreakTime / 3600)).padStart(2, '0');
+
+            minutesDisplay.textContent = String(Math.floor((currentBreakTime % 3600) / 60)).padStart(2, '0');
+
+            secondsDisplay.textContent = String(currentBreakTime % 60).padStart(2, '0');
+
+        }
+
+
+
+        /**
+
+         * Shows the operator name input modal.
+
+         */
+
+        function showOperatorModal() {
+
+            operatorNameInput.value = ''; // Clear the input field
+
+            operatorModal.classList.remove('hidden');
+
+            operatorNameInput.focus(); // Focus on the input field
+
+        }
+
+
+
+        /**
+
+         * Hides the operator name input modal.
+
+         */
+
+        function hideOperatorModal() {
+
+            operatorModal.classList.add('hidden');
+
+        }
+
+
+
+        /**
+
+         * Shows the password input modal (for Reset Log).
+
+         */
+
+        function showPasswordModal() {
+
+            passwordModal.classList.remove('hidden');
+
+            passwordInput.value = ''; // Clear previous input
+
+            passwordErrorMessage.classList.add('hidden'); // Hide error message
+
+            passwordInput.focus(); // Focus on the input field
+
+        }
+
+
+
+        /**
+
+         * Hides the password input modal (for Reset Log).
+
+         */
+
+        function hidePasswordModal() {
+
+            passwordModal.classList.add('hidden');
+
+        }
+
+
+
+        /**
+
+         * Shows the supervisor login modal.
+
+         */
+
+        function showSupervisorLoginModal() {
+
+            supervisorLoginModal.classList.remove('hidden');
+
+            supervisorPasswordInput.value = ''; // Clear previous input
+
+            supervisorLoginErrorMessage.classList.add('hidden'); // Hide error message
+
+            supervisorPasswordInput.focus(); // Focus on the input field
+
+        }
+
+
+
+        /**
+
+         * Hides the supervisor login modal.
+
+         */
+
+        function hideSupervisorLoginModal() {
+
+            supervisorLoginModal.classList.add('hidden');
+
+        }
+
+
+
+        /**
+
+         * Switches to the supervisor dashboard view.
+
+         */
+
+        function switchToSupervisorView() {
+
+            operatorView.classList.add('hidden');
+
+            supervisorView.classList.remove('hidden');
+
+            loadAllBreaksForSupervisor(); // Load all breaks for supervisor dashboard
+
+            // Start interval to refresh supervisor dashboard data
+
+            supervisorDashboardIntervalId = setInterval(() => {
+
+                loadAllBreaksForSupervisor();
+
+            }, 5000);
+
+        }
+
+
+
+        /**
+
+         * Switches back to the operator view.
+
+         */
+
+        function switchToOperatorView() {
+
+            supervisorView.classList.add('hidden');
+
+            operatorView.classList.remove('hidden');
+
+            if (supervisorDashboardIntervalId) {
+
+                clearInterval(supervisorDashboardIntervalId);
+
+                supervisorDashboardIntervalId = null;
+
+            }
+
+            allBreaksTableBody.innerHTML = ''; // Clear dashboard display
+
+            noAllBreaksTableMessage.style.display = 'block'; // Show no breaks message
+
+            // Re-initialize operator view state after returning
+
+            loadBreakLogs();
+
+        }
+
+
+
+        /**
+
+         * Initiates the break after operator name is confirmed.
+
+         * This function contains the core logic for starting the timer and updating Firestore.
+
+         */
+
+        async function initiateBreak() {
+
+            breakStartTime = new Date();
+
+            isBreakActive = true;
+
+            currentBreakTime = 0; // Reset break timer for new break
+
+            updateBreakDisplay(); // Update display to 00:00:00
+
+
+
+            // Start the break timer
+
+            breakTimerIntervalId = setInterval(updateBreakDisplay, 1000); // Timer now calls updateBreakDisplay
+
+
+
+            statusMessage.textContent = `${operatorName} is on break...`;
+
+            statusMessage.classList.remove('text-indigo-700', 'text-gray-600'); // Clean up old statuses
+
+            statusMessage.classList.add('text-green-700');
+
+
+
+            startBreakButton.disabled = true;
+
+            endBreakButton.disabled = false;
+
+
+
+            // Add entry to public active breaks collection
+
+            try {
+
+                await setDoc(doc(db, `artifacts/${appId}/public_data/data/activeBreaks`, userId), {
+
+                    operatorName: operatorName,
+
+                    breakStartTime: breakStartTime.toISOString(),
+
+                    status: 'active', // Mark as active
+
+                    userId: userId, // Store userId for security rules
+
+                    hiddenFromSupervisor: false // Initialize flag for hiding from supervisor
+
+                });
+
+                console.log("Active break status updated in public log.");
+
+            } catch (error) {
+
+                console.error("Error updating public active breaks:", error);
+
+            }
+
+        }
+
+
+
+        /**
+
+         * Starts a break, always prompting for operator name if not already active.
+
+         */
+
+        async function startBreak() {
+
+            if (isBreakActive) return; // Prevent starting a new break if one is already active
+
+
+
+            // Always show the operator name modal before starting a break
+
+            showOperatorModal();
+
+            // The rest of the logic will be handled by the confirmNameButton's click listener
+
+        }
+
+
+
+        /**
+
+         * Ends a break and logs its duration.
+
+         */
+
+        async function endBreak() {
+
+            if (!isBreakActive) return; // Only end break if one is active
+
+
+
+            clearInterval(breakTimerIntervalId); // Stop the break timer
+
+            breakTimerIntervalId = null;
+
+
+
+            const breakEndTime = new Date();
+
+            const durationMs = breakEndTime.getTime() - breakStartTime.getTime();
+
+            const durationSeconds = Math.floor(durationMs / 1000);
+
+
+
+            // Log the current break to Firestore (private log)
+
+            await logBreakPrivate(breakEndTime, durationSeconds);
+
+
+
+            isBreakActive = false;
+
+            breakStartTime = null; // Clear break start time
+
+
+
+            // Reset timer display to 00:00:00 immediately
+
+            currentBreakTime = 0;
+
+            updateBreakDisplay();
+
+
+
+            // Update status message
+
+            statusMessage.textContent = `Ready to start a break!`;
+
+            statusMessage.classList.remove('text-green-700');
+
+            statusMessage.classList.add('text-gray-600');
+
+
+
+            startBreakButton.disabled = false;
+
+            endBreakButton.disabled = true;
+
+
+
+            // Update entry in public active breaks collection instead of removing
+
+            try {
+
+                await setDoc(doc(db, `artifacts/${appId}/public_data/data/activeBreaks`, userId), {
+
+                    breakEndTime: breakEndTime.toISOString(),
+
+                    durationSeconds: durationSeconds,
+
+                    status: 'ended' // Mark as ended
+
+                }, { merge: true }); // Use merge to only update specified fields
+
+                console.log("Active break status updated to ended in public log.");
+
+            } catch (error) {
+
+                console.error("Error updating public active breaks:", error);
+
+            }
+
+        }
+
+
+
+        /**
+
+         * Logs the completed break session to Firestore (private log) and updates display.
+
+         */
+
+        async function logBreakPrivate(breakEndTime, durationSeconds) {
+
+            if (!breakStartTime) return; // Should not happen if isBreakActive is true
+
+
+
+            const logEntryData = {
+
+                operatorName: operatorName,
+
+                breakNumber: breakCount + 1, // Increment for the log entry
+
+                durationSeconds: durationSeconds,
+
+                timestamp: breakEndTime.toISOString(), // Store as ISO string for sorting
+
+                display: `${operatorName} - Break ${breakCount + 1} - ${formatDuration(durationSeconds)}`
+
+            };
+
+
+
+            try {
+
+                // Save to Firestore (private log)
+
+                await addDoc(collection(db, `artifacts/${appId}/users/${userId}/breakLogs`), logEntryData);
+
+                console.log("Break logged to Firestore successfully!");
+
+                // Update local display after successful save
+
+                updateBreakLogDisplay(logEntryData);
+
+            } catch (error) {
+
+                console.error("Error logging break to Firestore:", error);
+
+                // Optionally show an  error message to the user
+
+            }
+
+        }
+
+
+
+        /**
+
+         * Updates the local break log display.
+
+         * @param {object} entryData - The data for the log entry.
+
+         */
+
+        function updateBreakLogDisplay(entryData) {
+
+            // If "No breaks logged yet." message exists, remove it
+
+            const currentNoBreaksMessage = document.getElementById('no-breaks-message');
+
+            if (currentNoBreaksMessage) {
+
+                currentNoBreaksMessage.style.display = 'none';
+
+            }
+
+
+
+            const logEntry = document.createElement('p');
+
+            logEntry.classList.add('py-1', 'border-b', 'border-gray-100', 'last:border-b-0');
+
+            logEntry.textContent = entryData.display;
+
+            breakLog.prepend(logEntry); // Add to the top of the log
+
+        }
+
+
+
+        /**
+
+         * Loads existing break logs from Firestore (for the current user) and sets up the initial UI state.
+
+         */
+
+        async function loadBreakLogs() {
+
+            if (!userId) {
+
+                console.warn("User not authenticated yet, cannot load logs.");
+
+                return;
+
+            }
+
+
+
+            statusMessage.textContent = "Loading break data...";
+
+            startBreakButton.disabled = true;
+
+            endBreakButton.disabled = true;
+
+            resetLogButton.disabled = true;
+
+
+
+            // 1. Load operator name first (still useful for displaying past logs)
+
+            try {
+
+                const operatorNameCollection = collection(db, `artifacts/${appId}/users/${userId}/appState`);
+
+                const operatorStateDocs = await getDocs(operatorNameCollection);
+
+                if (!operatorStateDocs.empty && operatorStateDocs.docs[0].data().name) {
+
+                    operatorName = operatorStateDocs.docs[0].data().name;
+
+                }
+
+            } catch (error) {
+
+                console.error("Error loading operator name:", error);
+
+                // Continue even if name fails to load, will prompt user later
+
+            }
+
+
+
+            // 2. Check public active break status for this user
+
+            try {
+
+                const publicBreakDocRef = doc(db, `artifacts/${appId}/public_data/data/activeBreaks`, userId);
+
+                const publicBreakDoc = await getDoc(publicBreakDocRef);
+
+
+
+                if (publicBreakDoc.exists() && publicBreakDoc.data().status === 'active') {
+
+                    const data = publicBreakDoc.data();
+
+                    breakStartTime = new Date(data.breakStartTime);
+
+                    isBreakActive = true;
+
+                    statusMessage.textContent = `${operatorName || 'Operator'} is on break...`; // Use operatorName if available
+
+                    statusMessage.classList.remove('text-indigo-700', 'text-gray-600');
+
+                    statusMessage.classList.add('text-green-700');
+
+                    startBreakButton.disabled = true;
+
+                    endBreakButton.disabled = false;
+
+                    resetLogButton.disabled = false; // Always allow reset
+
+
+
+                    // Start the timer interval
+
+                    if (breakTimerIntervalId) clearInterval(breakTimerIntervalId); // Clear any old interval
+
+                    breakTimerIntervalId = setInterval(updateBreakDisplay, 1000);
+
+                    updateBreakDisplay(); // Initial update
+
+                } else {
+
+                    // No active break found in public data for this user
+
+                    isBreakActive = false;
+
+                    breakStartTime = null; // Ensure no stale start time
+
+                    currentBreakTime = 0; // Reset timer display
+
+                    updateBreakDisplay();
+
+
+
+                    // Always show "Ready to start a break!" as name will be asked on click
+
+                    statusMessage.textContent = "Ready to start a break!";
+
+                    statusMessage.classList.remove('text-indigo-700', 'text-green-700');
+
+                    statusMessage.classList.add('text-gray-600');
+
+
+
+                    startBreakButton.disabled = false; // Enable start button
+
+                    endBreakButton.disabled = true; // Disable end button
+
+                    resetLogButton.disabled = false;
+
+
+
+                    if (breakTimerIntervalId) { // Ensure timer is stopped if no active break
+
+                        clearInterval(breakTimerIntervalId);
+
+                        breakTimerIntervalId = null;
+
+                    }
+
+                }
+
+            } catch (error) {
+
+                console.error("Error checking public break status on load:", error);
+
+                statusMessage.textContent = "Error loading status. Please refresh.";
+
+                startBreakButton.disabled = true;
+
+                endBreakButton.disabled = true;
+
+                resetLogButton.disabled = true;
+
+            }
+
+
+
+            // 3. Load private break logs (this can happen in parallel or after UI state is set)
+
+            try {
+
+                const q = query(collection(db, `artifacts/${appId}/users/${userId}/breakLogs`));
+
+                const querySnapshot = await getDocs(q);
+
+
+
+                breakLog.innerHTML = ''; // Clear current display
+
+                let maxBreakNumber = 0;
+
+                if (querySnapshot.empty) {
+
+                    noBreaksMessage.style.display = 'block';
+
+                    breakLog.appendChild(noBreaksMessage);
+
+                } else {
+
+                    noBreaksMessag
