@@ -344,6 +344,7 @@
          * Shows the operator name input modal.
          */
         function showOperatorModal() {
+            operatorNameInput.value = ''; // Clear the input field
             operatorModal.classList.remove('hidden');
             operatorNameInput.focus(); // Focus on the input field
         }
@@ -419,18 +420,10 @@
         }
 
         /**
-         * Starts a break, prompting for operator name if needed.
+         * Initiates the break after operator name is confirmed.
+         * This function contains the core logic for starting the timer and updating Firestore.
          */
-        async function startBreak() {
-            if (isBreakActive) return; // Prevent starting a new break if one is already active
-
-            if (!operatorName) {
-                // If operator name is not set, show the modal first
-                showOperatorModal();
-                return; // Stop execution until name is confirmed
-            }
-
-            // If operator name is set, proceed to start the break
+        async function initiateBreak() {
             breakStartTime = new Date();
             isBreakActive = true;
             currentBreakTime = 0; // Reset break timer for new break
@@ -459,6 +452,17 @@
             } catch (error) {
                 console.error("Error updating public active breaks:", error);
             }
+        }
+
+        /**
+         * Starts a break, always prompting for operator name if not already active.
+         */
+        async function startBreak() {
+            if (isBreakActive) return; // Prevent starting a new break if one is already active
+
+            // Always show the operator name modal before starting a break
+            showOperatorModal();
+            // The rest of the logic will be handled by the confirmNameButton's click listener
         }
 
         /**
@@ -562,7 +566,7 @@
             endBreakButton.disabled = true;
             resetLogButton.disabled = true;
 
-            // 1. Load operator name first
+            // 1. Load operator name first (still useful for displaying past logs)
             try {
                 const operatorNameCollection = collection(db, `artifacts/${appId}/users/${userId}/appState`);
                 const operatorStateDocs = await getDocs(operatorNameCollection);
@@ -583,7 +587,7 @@
                     const data = publicBreakDoc.data();
                     breakStartTime = new Date(data.breakStartTime);
                     isBreakActive = true;
-                    statusMessage.textContent = `${operatorName || 'Operator'} is on break...`;
+                    statusMessage.textContent = `${operatorName || 'Operator'} is on break...`; // Use operatorName if available
                     statusMessage.classList.remove('text-indigo-700', 'text-gray-600');
                     statusMessage.classList.add('text-green-700');
                     startBreakButton.disabled = true;
@@ -601,17 +605,13 @@
                     currentBreakTime = 0; // Reset timer display
                     updateBreakDisplay();
 
-                    if (operatorName) {
-                        statusMessage.textContent = `Hello ${operatorName}! Ready to start a break.`;
-                        statusMessage.classList.remove('text-gray-600', 'text-green-700');
-                        statusMessage.classList.add('text-indigo-700');
-                    } else {
-                        statusMessage.textContent = "Ready to start a break!";
-                        statusMessage.classList.remove('text-indigo-700', 'text-green-700');
-                        statusMessage.classList.add('text-gray-600');
-                    }
-                    startBreakButton.disabled = false;
-                    endBreakButton.disabled = true;
+                    // Always show "Ready to start a break!" as name will be asked on click
+                    statusMessage.textContent = "Ready to start a break!";
+                    statusMessage.classList.remove('text-indigo-700', 'text-green-700');
+                    statusMessage.classList.add('text-gray-600');
+
+                    startBreakButton.disabled = false; // Enable start button
+                    endBreakButton.disabled = true; // Disable end button
                     resetLogButton.disabled = false;
 
                     if (breakTimerIntervalId) { // Ensure timer is stopped if no active break
@@ -844,10 +844,8 @@
                 operatorName = name;
                 hideOperatorModal();
                 await saveOperatorName(name); // Save operator name to Firestore
-                // After saving name, check if a break should be started (only if not already active)
-                if (!isBreakActive) {
-                    startBreak();
-                }
+                // After saving name, initiate the break
+                await initiateBreak();
             } else {
                 console.log("Operator name cannot be empty.");
                 alert("Operator name cannot be empty. Please enter your name.");
