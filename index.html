@@ -14,17 +14,7 @@
 
         // Global Firebase variables (provided by Canvas environment)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        // YOUR FIREBASE CONFIGURATION - REPLACE THIS BLOCK WITH YOUR ACTUAL CONFIG IF IT'S DIFFERENT
-        const firebaseConfig = {
-          apiKey: "AIzaSyAuVMBEuRsFIcllvr0pfLq7rBMfrhUHjq8",
-          authDomain: "breaktracker-ce082.firebaseapp.com",
-          projectId: "breaktracker-ce082",
-          storageBucket: "breaktracker-ce082.firebasestorage.app",
-          messagingSenderId: "1088975926809",
-          appId: "1:1088975926809:web:b4ff3d7257e8bd3cca9c88",
-          measurementId: "G-RPJS2W27KD"
-        };
-        // END OF YOUR FIREBASE CONFIGURATION
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
@@ -83,27 +73,30 @@
         .break-log-container::-webkit-scrollbar {
             display: none; /* Chrome, Safari, Opera */
         }
-        /* Table styling for supervisor dashboard */
-        .supervisor-table {
+        /* Table styling for supervisor dashboard and personal log */
+        .supervisor-table, .personal-log-table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 1rem;
             font-size: 0.9rem; /* Slightly smaller font for tables */
         }
-        .supervisor-table th, .supervisor-table td {
+        .supervisor-table th, .supervisor-table td,
+        .personal-log-table th, .personal-log-table td {
             padding: 0.75rem;
             border: 1px solid #e2e8f0; /* Tailwind gray-200 */
             text-align: left;
         }
-        .supervisor-table th {
+        .supervisor-table th, .personal-log-table th {
             background-color: #edf2f7; /* Tailwind gray-100 */
             font-weight: 600;
             color: #4a5568; /* Tailwind gray-700 */
         }
-        .supervisor-table tbody tr:nth-child(odd) {
+        .supervisor-table tbody tr:nth-child(odd),
+        .personal-log-table tbody tr:nth-child(odd) {
             background-color: #f7fafc; /* Tailwind gray-50 */
         }
-        .supervisor-table tbody tr:hover {
+        .supervisor-table tbody tr:hover,
+        .personal-log-table tbody tr:hover {
             background-color: #ebf4ff; /* Tailwind blue-50 */
         }
         .supervisor-table .status-active {
@@ -154,8 +147,22 @@
         <!-- Break Log -->
         <div class="mt-8 pt-6 border-t border-gray-200">
             <h2 class="text-2xl font-bold text-gray-800 mb-4">Break Log</h2>
-            <div id="break-log" class="break-log-container bg-gray-50 p-4 rounded-md text-left text-gray-700 text-sm">
-                <p class="text-gray-500 text-center" id="no-breaks-message">No breaks logged yet.</p>
+            <div class="break-log-container bg-gray-50 p-4 rounded-md text-left text-gray-700 text-sm">
+                <table class="personal-log-table">
+                    <thead>
+                        <tr>
+                            <th>S.No</th>
+                            <th>Name</th>
+                            <th>Break Start Time</th>
+                            <th>Break End Time</th>
+                            <th>Break Taken</th>
+                        </tr>
+                    </thead>
+                    <tbody id="personal-break-log-body">
+                        <!-- Personal break logs will be loaded here -->
+                    </tbody>
+                </table>
+                <p class="text-gray-500 text-center mt-4" id="no-breaks-message">No breaks logged yet.</p>
             </div>
         </div>
     </div>
@@ -174,6 +181,7 @@
             <table class="supervisor-table">
                 <thead>
                     <tr>
+                        <th>S.No</th> <!-- Added S.No column -->
                         <th>Operator</th>
                         <th>Start Time</th>
                         <th>End Time</th>
@@ -195,7 +203,7 @@
     <div id="operator-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 hidden">
         <div class="bg-white p-8 rounded-xl shadow-lg text-center w-96 max-w-xs sm:max-w-sm">
             <h2 class="text-2xl font-bold text-gray-800 mb-4">Enter Operator Name</h2>
-            <input type="text" id="operator-name-input" placeholder="Your Name" class="w-full p-3 border border-gray-300 rounded-md mb-4 text-center focus:ring-indigo-500 focus:border-indigo-500">
+            <input type="text" id="operator-name-input" placeholder="Your Name" autocomplete="off" class="w-full p-3 border border-gray-300 rounded-md mb-4 text-center focus:ring-indigo-500 focus:border-indigo-500">
             <div class="flex justify-center gap-4">
                 <button id="confirm-name-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
                     Confirm
@@ -241,6 +249,22 @@
         </div>
     </div>
 
+    <!-- End Break Confirmation Modal -->
+    <div id="end-break-confirm-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-8 rounded-xl shadow-lg text-center w-96 max-w-xs sm:max-w-sm">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">End Break?</h2>
+            <p class="text-gray-700 mb-6">Are you sure you want to end your current break?</p>
+            <div class="flex justify-center gap-4">
+                <button id="confirm-end-break-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                    Yes, End Break
+                </button>
+                <button id="cancel-end-break-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
+                    No, Continue
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         // Get DOM elements for Operator View
         const operatorView = document.getElementById('operator-view');
@@ -250,7 +274,7 @@
         const statusMessage = document.getElementById('status-message');
         const startBreakButton = document.getElementById('start-break-button');
         const endBreakButton = document.getElementById('end-break-button');
-        const breakLog = document.getElementById('break-log');
+        const personalBreakLogBody = document.getElementById('personal-break-log-body'); // Changed from breakLog
         const noBreaksMessage = document.getElementById('no-breaks-message');
         const operatorModal = document.getElementById('operator-modal');
         const operatorNameInput = document.getElementById('operator-name-input');
@@ -276,6 +300,11 @@
         // Supervisor Dashboard elements
         const allBreaksTableBody = document.getElementById('all-breaks-table-body');
         const noAllBreaksTableMessage = document.getElementById('no-all-breaks-table-message');
+
+        // End Break Confirmation Modal elements
+        const endBreakConfirmModal = document.getElementById('end-break-confirm-modal');
+        const confirmEndBreakButton = document.getElementById('confirm-end-break-button');
+        const cancelEndBreakButton = document.getElementById('cancel-end-break-button');
 
 
         // Timer variables
@@ -391,6 +420,20 @@
         }
 
         /**
+         * Shows the end break confirmation modal.
+         */
+        function showEndBreakConfirmModal() {
+            endBreakConfirmModal.classList.remove('hidden');
+        }
+
+        /**
+         * Hides the end break confirmation modal.
+         */
+        function hideEndBreakConfirmModal() {
+            endBreakConfirmModal.classList.add('hidden');
+        }
+
+        /**
          * Switches to the supervisor dashboard view.
          */
         function switchToSupervisorView() {
@@ -441,12 +484,13 @@
 
             // Add entry to public active breaks collection
             try {
-                await setDoc(doc(db, `artifacts/${appId}/public_data/data/activeBreaks`, userId), {
+                // Set the current active break status for this user
+                await setDoc(doc(db, `artifacts/${appId}/public/data/activeBreaks`, userId), {
                     operatorName: operatorName,
                     breakStartTime: breakStartTime.toISOString(),
                     status: 'active', // Mark as active
                     userId: userId, // Store userId for security rules
-                    hiddenFromSupervisor: false // Initialize flag for hiding from supervisor
+                    hiddenFromSupervisor: false // Initialize flag for hiding from supervisor (only relevant for activeBreaks)
                 });
                 console.log("Active break status updated in public log.");
             } catch (error) {
@@ -467,9 +511,18 @@
 
         /**
          * Ends a break and logs its duration.
+         * This function now shows a confirmation modal first.
          */
         async function endBreak() {
             if (!isBreakActive) return; // Only end break if one is active
+            showEndBreakConfirmModal(); // Show confirmation modal
+        }
+
+        /**
+         * Confirms and proceeds with ending the break.
+         */
+        async function confirmEndBreak() {
+            hideEndBreakConfirmModal(); // Hide the confirmation modal
 
             clearInterval(breakTimerIntervalId); // Stop the break timer
             breakTimerIntervalId = null;
@@ -478,8 +531,25 @@
             const durationMs = breakEndTime.getTime() - breakStartTime.getTime();
             const durationSeconds = Math.floor(durationMs / 1000);
 
-            // Log the current break to Firestore (private log)
+            // Log the current break to Firestore (private log for the operator)
             await logBreakPrivate(breakEndTime, durationSeconds);
+
+            // Add this completed break to the public historical log for supervisor
+            try {
+                await addDoc(collection(db, `artifacts/${appId}/public/data/all_breaks_history`), {
+                    operatorName: operatorName,
+                    userId: userId,
+                    breakStartTime: breakStartTime.toISOString(),
+                    breakEndTime: breakEndTime.toISOString(),
+                    durationSeconds: durationSeconds,
+                    status: 'ended', // Always 'ended' for this history collection
+                    timestamp: breakEndTime.toISOString(), // For sorting in supervisor view
+                    hiddenFromSupervisor: false // Default to visible, supervisor can hide
+                });
+                console.log("Completed break added to public history log.");
+            } catch (error) {
+                console.error("Error adding completed break to public history:", error);
+            }
 
             isBreakActive = false;
             breakStartTime = null; // Clear break start time
@@ -496,12 +566,12 @@
             startBreakButton.disabled = false;
             endBreakButton.disabled = true;
 
-            // Update entry in public active breaks collection instead of removing
+            // Update entry in public active breaks collection to 'ended'
             try {
-                await setDoc(doc(db, `artifacts/${appId}/public_data/data/activeBreaks`, userId), {
+                await setDoc(doc(db, `artifacts/${appId}/public/data/activeBreaks`, userId), {
                     breakEndTime: breakEndTime.toISOString(),
                     durationSeconds: durationSeconds,
-                    status: 'ended' // Mark as ended
+                    status: 'ended' // Mark as ended in the active status collection
                 }, { merge: true }); // Use merge to only update specified fields
                 console.log("Active break status updated to ended in public log.");
             } catch (error) {
@@ -520,15 +590,15 @@
                 breakNumber: breakCount + 1, // Increment for the log entry
                 durationSeconds: durationSeconds,
                 timestamp: breakEndTime.toISOString(), // Store as ISO string for sorting
-                display: `${operatorName} - Break ${breakCount + 1} - ${formatDuration(durationSeconds)}`
+                // Removed 'display' field as it's no longer used for rendering directly
             };
 
             try {
                 // Save to Firestore (private log)
                 await addDoc(collection(db, `artifacts/${appId}/users/${userId}/breakLogs`), logEntryData);
                 console.log("Break logged to Firestore successfully!");
-                // Update local display after successful save
-                updateBreakLogDisplay(logEntryData);
+                // After logging, reload the entire personal break log to ensure S.No and order are correct
+                await loadBreakLogs();
             } catch (error) {
                 console.error("Error logging break to Firestore:", error);
                 // Optionally show an  error message to the user
@@ -536,24 +606,8 @@
         }
 
         /**
-         * Updates the local break log display.
-         * @param {object} entryData - The data for the log entry.
-         */
-        function updateBreakLogDisplay(entryData) {
-            // If "No breaks logged yet." message exists, remove it
-            const currentNoBreaksMessage = document.getElementById('no-breaks-message');
-            if (currentNoBreaksMessage) {
-                currentNoBreaksMessage.style.display = 'none';
-            }
-
-            const logEntry = document.createElement('p');
-            logEntry.classList.add('py-1', 'border-b', 'border-gray-100', 'last:border-b-0');
-            logEntry.textContent = entryData.display;
-            breakLog.prepend(logEntry); // Add to the top of the log
-        }
-
-        /**
          * Loads existing break logs from Firestore (for the current user) and sets up the initial UI state.
+         * This now renders the logs in a table format.
          */
         async function loadBreakLogs() {
             if (!userId) {
@@ -568,10 +622,11 @@
 
             // 1. Load operator name first (still useful for displaying past logs)
             try {
-                const operatorNameCollection = collection(db, `artifacts/${appId}/users/${userId}/appState`);
-                const operatorStateDocs = await getDocs(operatorNameCollection);
-                if (!operatorStateDocs.empty && operatorStateDocs.docs[0].data().name) {
-                    operatorName = operatorStateDocs.docs[0].data().name;
+                const operatorNameDocRef = doc(db, `artifacts/${appId}/users/${userId}/appState`, 'operatorName');
+                const operatorNameDoc = await getDoc(operatorNameDocRef);
+                if (operatorNameDoc.exists() && operatorNameDoc.data().name) {
+                    operatorName = operatorNameDoc.data().name;
+                    operatorNameInput.value = operatorName; // Pre-fill the modal input
                 }
             } catch (error) {
                 console.error("Error loading operator name:", error);
@@ -580,7 +635,7 @@
 
             // 2. Check public active break status for this user
             try {
-                const publicBreakDocRef = doc(db, `artifacts/${appId}/public_data/data/activeBreaks`, userId);
+                const publicBreakDocRef = doc(db, `artifacts/${appId}/public/data/activeBreaks`, userId);
                 const publicBreakDoc = await getDoc(publicBreakDocRef);
 
                 if (publicBreakDoc.exists() && publicBreakDoc.data().status === 'active') {
@@ -621,7 +676,7 @@
                 }
             } catch (error) {
                 console.error("Error checking public break status on load:", error);
-                statusMessage.textContent = "Error loading status. Please refresh.";
+                statusMessage.textContent = "Authentication error. Please refresh.";
                 startBreakButton.disabled = true;
                 endBreakButton.disabled = true;
                 resetLogButton.disabled = true;
@@ -629,314 +684,413 @@
 
             // 3. Load private break logs (this can happen in parallel or after UI state is set)
             try {
-                const q = query(collection(db, `artifacts/${appId}/users/${userId}/breakLogs`));
+                const q = collection(db, `artifacts/${appId}/users/${userId}/breakLogs`);
                 const querySnapshot = await getDocs(q);
 
-                breakLog.innerHTML = ''; // Clear current display
+                personalBreakLogBody.innerHTML = ''; // Clear current display
                 let maxBreakNumber = 0;
-                if (querySnapshot.empty) {
+                const breaks = [];
+
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    breaks.push(data);
+                    if (data.breakNumber && data.breakNumber > maxBreakNumber) {
+                        maxBreakNumber = data.breakNumber;
+                    }
+                });
+
+                // Sort breaks by timestamp in ascending order for S.No (chronological)
+                breaks.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+                if (breaks.length === 0) {
                     noBreaksMessage.style.display = 'block';
-                    breakLog.appendChild(noBreaksMessage);
                 } else {
                     noBreaksMessage.style.display = 'none';
-                    const loadedLogs = [];
-                    querySnapshot.forEach((doc) => {
-                        const data = doc.data();
-                        loadedLogs.push(data);
-                        if (data.breakNumber > maxBreakNumber) {
-                            maxBreakNumber = data.breakNumber;
-                        }
+                    breaks.forEach((entry, index) => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${index + 1}</td>
+                            <td>${entry.operatorName || 'N/A'}</td>
+                            <td>${new Date(entry.timestamp).toLocaleTimeString()}</td>
+                            <td>${new Date(entry.timestamp).toLocaleTimeString()}</td>
+                            <td>${formatDuration(entry.durationSeconds)}</td>
+                        `;
+                        personalBreakLogBody.appendChild(row);
                     });
-                    // Sort by timestamp to display in correct order (most recent first)
-                    loadedLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-                    loadedLogs.forEach(entry => updateBreakLogDisplay(entry));
                 }
-                breakCount = maxBreakNumber; // Set breakCount to the highest existing break number
+                breakCount = maxBreakNumber; // Set breakCount based on the highest existing break number
+                console.log("Private break logs loaded successfully. Break count:", breakCount);
 
             } catch (error) {
                 console.error("Error loading private break logs:", error);
-                // Status message for overall app status is already set by public break check
+                statusMessage.textContent = "Error loading past breaks. Please refresh.";
             }
         }
 
         /**
-         * Loads and displays all break entries (active and ended, not hidden) for the supervisor dashboard.
+         * Resets the entire break log for the current operator after password confirmation.
+         * This deletes all private break logs and updates the public active break status.
          */
-        async function loadAllBreaksForSupervisor() {
-            if (!userId) { // Supervisor also needs to be authenticated to read public data
-                console.warn("Supervisor not authenticated, cannot load all breaks.");
+        async function resetLog() {
+            showPasswordModal();
+        }
+
+        /**
+         * Deletes all private break logs for the current user and updates their public active break status.
+         * This no longer hides the last entry from the supervisor dashboard.
+         */
+        async function deleteAllBreakLogs() {
+            if (!userId) {
+                console.error("Cannot reset log: User not authenticated.");
                 return;
             }
 
             try {
-                const q = query(collection(db, `artifacts/${appId}/public_data/data/activeBreaks`));
-                const querySnapshot = await getDocs(q);
-
-                allBreaksTableBody.innerHTML = ''; // Clear current display
-                if (querySnapshot.empty) {
-                    noAllBreaksTableMessage.style.display = 'block';
-                } else {
-                    noAllBreaksTableMessage.style.display = 'none';
-                    const allBreakEntries = [];
-                    querySnapshot.forEach((doc) => {
-                        const data = doc.data();
-                        // Only include entries not hidden from supervisor
-                        if (data.hiddenFromSupervisor !== true) {
-                            const breakStartTime = new Date(data.breakStartTime);
-                            let durationSeconds = 0;
-                            let status = data.status || 'unknown';
-
-                            if (status === 'active') {
-                                const now = new Date();
-                                durationSeconds = Math.floor((now.getTime() - breakStartTime.getTime()) / 1000);
-                            } else if (status === 'ended' && data.durationSeconds !== undefined) {
-                                durationSeconds = data.durationSeconds;
-                            }
-
-                            allBreakEntries.push({
-                                operatorId: doc.id, // Store the operator's userId
-                                operatorName: data.operatorName,
-                                breakStartTime: breakStartTime.toLocaleTimeString(),
-                                breakEndTime: data.breakEndTime ? new Date(data.breakEndTime).toLocaleTimeString() : '-',
-                                durationDisplay: formatDuration(durationSeconds),
-                                status: status.charAt(0).toUpperCase() + status.slice(1), // Capitalize status
-                                hiddenFromSupervisor: data.hiddenFromSupervisor || false
-                            });
-                        }
-                    });
-                    // Sort by status (active first) then by operator name
-                    allBreakEntries.sort((a, b) => {
-                        // Prioritize active, then ended
-                        const statusOrder = { 'Active': 1, 'Ended': 2, 'Unknown': 3 };
-                        if (statusOrder[a.status] !== statusOrder[b.status]) {
-                            return statusOrder[a.status] - statusOrder[b.status];
-                        }
-                        return a.operatorName.localeCompare(b.operatorName);
-                    });
-
-                    allBreakEntries.forEach(entry => {
-                        const row = allBreaksTableBody.insertRow();
-                        let rowStatusClass = `status-${entry.status.toLowerCase()}`;
-                        row.classList.add(rowStatusClass);
-
-                        const actionCellContent = `<button class="bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded text-xs hide-from-dashboard-btn" data-operator-id="${entry.operatorId}">Hide from Dashboard</button>`;
-
-                        row.innerHTML = `
-                            <td>${entry.operatorName}</td>
-                            <td>${entry.breakStartTime}</td>
-                            <td>${entry.breakEndTime}</td>
-                            <td>${entry.durationDisplay}</td>
-                            <td>${entry.status}</td>
-                            <td>${actionCellContent}</td>
-                        `;
-                    });
-
-                    // Add event listeners to new "Hide from Dashboard" buttons
-                    allBreaksTableBody.querySelectorAll('.hide-from-dashboard-btn').forEach(button => {
-                        button.addEventListener('click', (event) => hideBreakFromDashboard(event.target.dataset.operatorId));
-                    });
-                }
-            } catch (error) {
-                console.error("Error loading all breaks for supervisor:", error);
-                allBreaksTableBody.innerHTML = `<tr><td colspan="6" class="text-red-500 text-center">Error loading breaks.</td></tr>`;
-            }
-        }
-
-        /**
-         * Hides an operator's public break log from the supervisor dashboard.
-         * @param {string} operatorId - The userId of the operator whose log to hide.
-         */
-        async function hideBreakFromDashboard(operatorId) {
-            try {
-                const publicBreakDocRef = doc(db, `artifacts/${appId}/public_data/data/activeBreaks`, operatorId);
-                await setDoc(publicBreakDocRef, { hiddenFromSupervisor: true }, { merge: true });
-                console.log(`Operator ${operatorId}'s break hidden from supervisor dashboard.`);
-                loadAllBreaksForSupervisor(); // Refresh supervisor dashboard to show updated status
-            } catch (error) {
-                console.error(`Error hiding break for operator ${operatorId}:`, error);
-                alert(`Failed to hide break. Check console for details. (Error: ${error.message})`);
-            }
-        }
-
-        /**
-         * Saves the operator name to Firestore.
-         */
-        async function saveOperatorName(name) {
-            if (!userId) return;
-            try {
-                // Use a specific document to store the operator name
-                // We'll use setDoc with a fixed doc ID 'operator' to ensure only one entry per user
-                await setDoc(doc(db, `artifacts/${appId}/users/${userId}/appState`, 'operator'), { name: name });
-                console.log("Operator name saved to Firestore.");
-            } catch (error) {
-                console.error("Error saving operator name:", error);
-            }
-        }
-
-        /**
-         * Resets the break log and all related tracking variables, clearing Firestore data.
-         * This function is called by the operator on their own machine.
-         */
-        async function resetLog() {
-            // Stop any active break timer first
-            if (isBreakActive) {
-                clearInterval(breakTimerIntervalId);
-                breakTimerIntervalId = null;
-                isBreakActive = false;
-                breakStartTime = null;
-            }
-
-            // Clear the break log display
-            breakLog.innerHTML = '<p class="text-gray-500 text-center" id="no-breaks-message">No breaks logged yet.</p>';
-            const currentNoBreaksMessage = document.getElementById('no-breaks-message');
-            if (currentNoBreaksMessage) {
-                currentNoBreaksMessage.style.display = 'block';
-            }
-
-            // Delete all documents from private Firestore collection
-            try {
-                const q = query(collection(db, `artifacts/${appId}/users/${userId}/breakLogs`));
-                const querySnapshot = await getDocs(q);
+                // 1. Delete all private break logs for the current user
                 const batch = writeBatch(db);
+                const q = collection(db, `artifacts/${appId}/users/${userId}/breakLogs`);
+                const querySnapshot = await getDocs(q);
                 querySnapshot.forEach((doc) => {
                     batch.delete(doc.ref);
                 });
                 await batch.commit();
-                console.log("Private break logs deleted from Firestore successfully!");
+                console.log("All private break logs deleted successfully.");
 
-                // Also delete operator name state
-                const operatorStateDocRef = doc(db, `artifacts/${appId}/users/${userId}/appState`, 'operator');
-                await deleteDoc(operatorStateDocRef);
-                console.log("Operator name state deleted from Firestore successfully!");
+                // 2. Update the user's entry in the public activeBreaks collection
+                // Mark as ended but DO NOT hide from supervisor.
+                const publicBreakDocRef = doc(db, `artifacts/${appId}/public/data/activeBreaks`, userId);
+                await setDoc(publicBreakDocRef, {
+                    status: 'ended',
+                    // Removed: hiddenFromSupervisor: true, // This was causing the issue
+                    breakEndTime: new Date().toISOString(), // Mark end time
+                    durationSeconds: 0 // Reset duration
+                }, { merge: true });
+                console.log("Public active break status updated to ended (not hidden by operator reset).");
 
-                // Also remove active break status from public log (this will clear the flagged status too)
-                // This delete ensures the entry is completely removed from the public collection,
-                // including if it was previously hidden.
-                await deleteDoc(doc(db, `artifacts/${appId}/public_data/data/activeBreaks`, userId));
-                console.log("Public active break status removed during reset.");
+                // Reset local state and UI
+                personalBreakLogBody.innerHTML = '';
+                noBreaksMessage.style.display = 'block';
+                breakCount = 0;
+                isBreakActive = false;
+                breakStartTime = null;
+                currentBreakTime = 0;
+                updateBreakDisplay();
+                statusMessage.textContent = "Ready to start a break!";
+                statusMessage.classList.remove('text-green-700');
+                statusMessage.classList.add('text-gray-600');
+                startBreakButton.disabled = false;
+                endBreakButton.disabled = true;
 
             } catch (error) {
-                console.error("Error resetting log in Firestore:", error);
-                alert(`Failed to reset log. Check console for details. (Error: ${error.message})`);
+                console.error("Error resetting break log:", error);
+                // Optionally show an error message to the user
             }
-
-            // Reset all tracking variables
-            currentBreakTime = 0;
-            updateBreakDisplay(); // Reset timer display to 00:00:00
-            operatorName = ''; // Clear operator name
-            operatorNameInput.value = ''; // Clear input field in operator modal
-            breakCount = 0; // Reset break counter
-
-            // Re-initialize operator view state after reset
-            loadBreakLogs();
         }
 
-        // Event Listeners
-        startBreakButton.addEventListener('click', startBreak);
+        /**
+         * Loads all breaks from the public history collection for the supervisor dashboard.
+         */
+        async function loadAllBreaksForSupervisor() {
+            if (!userId) { // Supervisor also needs to be authenticated
+                console.warn("Supervisor not authenticated yet, cannot load all breaks.");
+                return;
+            }
+
+            try {
+                // Query the new all_breaks_history collection
+                const q = collection(db, `artifacts/${appId}/public/data/all_breaks_history`);
+                const querySnapshot = await getDocs(q);
+
+                allBreaksTableBody.innerHTML = ''; // Clear current display
+                const allBreaks = [];
+
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    // Only show breaks that are not explicitly hidden by the supervisor
+                    if (!data.hiddenFromSupervisor) {
+                        allBreaks.push({ id: doc.id, ...data });
+                    }
+                });
+
+                if (allBreaks.length === 0) {
+                    noAllBreaksTableMessage.style.display = 'block';
+                    // Adjust colspan for "no breaks" message if S.No column is added
+                    noAllBreaksTableMessage.colSpan = 7; // Assuming 7 columns now (S.No + 6 existing)
+                } else {
+                    noAllBreaksTableMessage.style.display = 'none';
+
+                    // Sort breaks by timestamp (breakStartTime for chronological order) in ascending order
+                    allBreaks.sort((a, b) => {
+                        const timeA = a.breakStartTime ? new Date(a.breakStartTime).getTime() : 0;
+                        const timeB = b.breakStartTime ? new Date(b.breakStartTime).getTime() : 0;
+                        return timeA - timeB; // Ascending order for chronological
+                    });
+
+                    // Fetch current active breaks separately to display them live
+                    // These should generally appear at the bottom if sorted chronologically by start time
+                    const activeBreaksQuery = collection(db, `artifacts/${appId}/public/data/activeBreaks`);
+                    const activeBreaksSnapshot = await getDocs(activeBreaksQuery);
+                    const currentActiveBreaks = {};
+                    activeBreaksSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        if (data.status === 'active' && !data.hiddenFromSupervisor) {
+                            currentActiveBreaks[doc.id] = data;
+                        }
+                    });
+
+                    // Combine and display
+                    const displayedUserIds = new Set(); // To prevent duplicate display of active breaks
+                    let sNoCounter = 1;
+
+                    // Display historical (ended) breaks first, in chronological order
+                    allBreaks.forEach(breakData => {
+                        // Only add if this break is not currently active (handled by activeBreaks loop below)
+                        // Or if it's an ended break that might have the same userId as an active one
+                        if (breakData.status === 'ended') {
+                            const row = document.createElement('tr');
+                            row.classList.add('status-ended');
+
+                            const startTime = breakData.breakStartTime ? new Date(breakData.breakStartTime).toLocaleTimeString() : 'N/A';
+                            const endTime = breakData.breakEndTime ? new Date(breakData.breakEndTime).toLocaleTimeString() : 'N/A';
+                            const duration = breakData.durationSeconds !== undefined ? formatDuration(breakData.durationSeconds) : 'N/A';
+
+                            row.innerHTML = `
+                                <td>${sNoCounter++}</td>
+                                <td>${breakData.operatorName || 'Unknown Operator'}</td>
+                                <td>${startTime}</td>
+                                <td>${endTime}</td>
+                                <td>${duration}</td>
+                                <td>Ended</td>
+                                <td>
+                                    <button class="hide-break-supervisor-btn bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded-md text-xs ml-1" data-breakid="${breakData.id}">Hide</button>
+                                </td>
+                            `;
+                            allBreaksTableBody.appendChild(row);
+                        }
+                    });
+
+                    // Display active breaks last, as they are the most recent "events"
+                    // Sort active breaks by start time to maintain consistent ordering if multiple are active
+                    const sortedActiveBreaks = Object.values(currentActiveBreaks).sort((a, b) => new Date(a.breakStartTime).getTime() - new Date(b.breakStartTime).getTime());
+
+                    sortedActiveBreaks.forEach(breakData => {
+                        const row = document.createElement('tr');
+                        row.classList.add('status-active');
+
+                        const startTime = breakData.breakStartTime ? new Date(breakData.breakStartTime).toLocaleTimeString() : 'N/A';
+                        const now = new Date();
+                        const activeDurationSeconds = Math.floor((now.getTime() - new Date(breakData.breakStartTime).getTime()) / 1000);
+                        const duration = formatDuration(activeDurationSeconds);
+                        const endTime = 'Ongoing'; // Indicate it's still active
+
+                        row.innerHTML = `
+                            <td>${sNoCounter++}</td>
+                            <td>${breakData.operatorName || 'Unknown Operator'}</td>
+                            <td>${startTime}</td>
+                            <td>${endTime}</td>
+                            <td>${duration}</td>
+                            <td><span class="text-green-600 font-bold">Active</span></td>
+                            <td>
+                                <button class="end-break-supervisor-btn bg-orange-500 hover:bg-orange-600 text-white py-1 px-2 rounded-md text-xs" data-userid="${breakData.userId}" data-breakid="${breakData.id}">End</button>
+                                <button class="hide-break-supervisor-btn bg-red-500 hover:bg-red-600 text-white py-1 px-2 rounded-md text-xs ml-1" data-breakid="${breakData.id}">Hide</button>
+                            </td>
+                        `;
+                        allBreaksTableBody.appendChild(row);
+                    });
+
+
+                    // Add event listeners to the dynamically created buttons
+                    document.querySelectorAll('.end-break-supervisor-btn').forEach(button => {
+                        button.onclick = (event) => endBreakFromSupervisor(event.target.dataset.userid, event.target.dataset.breakid);
+                    });
+                    document.querySelectorAll('.hide-break-supervisor-btn').forEach(button => {
+                        button.onclick = (event) => hideBreakFromSupervisor(event.target.dataset.breakid);
+                    });
+                }
+            } catch (error) {
+                console.error("Error loading all breaks for supervisor:", error);
+                allBreaksTableBody.innerHTML = `<tr><td colspan="7" class="text-red-500 text-center">Error loading data.</td></tr>`; // Updated colspan
+                noAllBreaksTableMessage.style.display = 'none';
+            }
+        }
+
+        /**
+         * Ends an active break for a specific user from the supervisor dashboard.
+         * This updates the active break status and adds a new entry to the historical log.
+         * @param {string} targetUserId - The userId of the operator whose break to end.
+         * @param {string} activeBreakDocId - The document ID of the active break in the activeBreaks collection.
+         */
+        async function endBreakFromSupervisor(targetUserId, activeBreakDocId) {
+            try {
+                const publicActiveBreakDocRef = doc(db, `artifacts/${appId}/public/data/activeBreaks`, activeBreakDocId);
+                const publicActiveBreakDoc = await getDoc(publicActiveBreakDocRef);
+
+                if (publicActiveBreakDoc.exists() && publicActiveBreakDoc.data().status === 'active') {
+                    const data = publicActiveBreakDoc.data();
+                    const breakStartTimeForUser = new Date(data.breakStartTime);
+                    const breakEndTimeForUser = new Date();
+                    const durationMs = breakEndTimeForUser.getTime() - breakStartTimeForUser.getTime();
+                    const durationSeconds = Math.floor(durationMs / 1000);
+
+                    // Update the active break status to ended
+                    await setDoc(publicActiveBreakDocRef, {
+                        breakEndTime: breakEndTimeForUser.toISOString(),
+                        durationSeconds: durationSeconds,
+                        status: 'ended'
+                    }, { merge: true });
+                    console.log(`Break for user ${targetUserId} ended by supervisor in activeBreaks.`);
+
+                    // Add this completed break to the public historical log
+                    await addDoc(collection(db, `artifacts/${appId}/public/data/all_breaks_history`), {
+                        operatorName: data.operatorName,
+                        userId: targetUserId,
+                        breakStartTime: data.breakStartTime,
+                        breakEndTime: breakEndTimeForUser.toISOString(),
+                        durationSeconds: durationSeconds,
+                        status: 'ended',
+                        timestamp: breakEndTimeForUser.toISOString(),
+                        hiddenFromSupervisor: false
+                    });
+                    console.log(`Completed break for user ${targetUserId} added to all_breaks_history.`);
+
+                    loadAllBreaksForSupervisor(); // Refresh dashboard
+                } else {
+                    console.warn(`Attempted to end break for user ${targetUserId}, but no active break found or it's already ended.`);
+                }
+            } catch (error) {
+                console.error(`Error ending break for user ${targetUserId}:`, error);
+            }
+        }
+
+        /**
+         * Hides a break entry from the supervisor dashboard by marking it in the historical collection.
+         * @param {string} breakDocId - The document ID of the break in the all_breaks_history collection to hide.
+         */
+        async function hideBreakFromSupervisor(breakDocId) {
+            try {
+                const historyBreakDocRef = doc(db, `artifacts/${appId}/public/data/all_breaks_history`, breakDocId);
+                await setDoc(historyBreakDocRef, {
+                    hiddenFromSupervisor: true
+                }, { merge: true });
+                console.log(`Break with ID ${breakDocId} hidden by supervisor.`);
+                loadAllBreaksForSupervisor(); // Refresh dashboard
+            } catch (error) {
+                console.error(`Error hiding break with ID ${breakDocId}:`, error);
+            }
+        }
+
+
+        // --- Event Listeners ---
+
+        // Modified endBreak button to show confirmation modal
         endBreakButton.addEventListener('click', endBreak);
-        resetLogButton.addEventListener('click', showPasswordModal); // Show password modal on reset click
-        supervisorLoginButton.addEventListener('click', showSupervisorLoginModal); // Event listener for supervisor login
-        backToOperatorViewButton.addEventListener('click', switchToOperatorView); // New event listener for back button
+        // New event listeners for the confirmation modal buttons
+        confirmEndBreakButton.addEventListener('click', confirmEndBreak);
+        cancelEndBreakButton.addEventListener('click', hideEndBreakConfirmModal);
+
+
+        startBreakButton.addEventListener('click', startBreak);
+        resetLogButton.addEventListener('click', resetLog);
 
         confirmNameButton.addEventListener('click', async () => {
             const name = operatorNameInput.value.trim();
             if (name) {
                 operatorName = name;
                 hideOperatorModal();
-                await saveOperatorName(name); // Save operator name to Firestore
-                // After saving name, initiate the break
-                await initiateBreak();
+                statusMessage.textContent = `Welcome, ${operatorName}!`;
+                statusMessage.classList.remove('text-gray-600');
+                statusMessage.classList.add('text-indigo-700');
+
+                // Save operator name to Firestore
+                try {
+                    await setDoc(doc(db, `artifacts/${appId}/users/${userId}/appState`, 'operatorName'), { name: operatorName });
+                    console.log("Operator name saved to Firestore.");
+                } catch (error) {
+                    console.error("Error saving operator name:", error);
+                }
+
+                initiateBreak(); // Proceed to start the break
             } else {
-                console.log("Operator name cannot be empty.");
-                alert("Operator name cannot be empty. Please enter your name.");
+                // Optionally, provide feedback that name is required
+                console.warn("Operator name cannot be empty.");
             }
         });
 
-        // Event listener for the cancel button in the operator name modal
         cancelNameButton.addEventListener('click', () => {
             hideOperatorModal();
-            // No other state changes needed, as the tracker should remain in its initial state.
+            // If the user cancels, allow them to start a break again
+            startBreakButton.disabled = false;
+            endBreakButton.disabled = true;
+            statusMessage.textContent = "Ready to start a break!";
+            statusMessage.classList.remove('text-green-700');
+            statusMessage.classList.add('text-gray-600');
         });
 
-        // Allow pressing Enter in the name input to confirm
-        operatorNameInput.addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                confirmNameButton.click();
-            }
-        });
-
-        confirmPasswordButton.addEventListener('click', () => {
-            if (passwordInput.value === CORRECT_PASSWORD) {
+        confirmPasswordButton.addEventListener('click', async () => {
+            const enteredPassword = passwordInput.value;
+            if (enteredPassword === CORRECT_PASSWORD) {
                 hidePasswordModal();
-                resetLog(); // Perform the reset
+                passwordErrorMessage.classList.add('hidden');
+                await deleteAllBreakLogs(); // Proceed with deleting logs
             } else {
-                passwordErrorMessage.classList.remove('hidden'); // Show error message
+                passwordErrorMessage.classList.remove('hidden');
             }
         });
 
         cancelPasswordButton.addEventListener('click', () => {
-            hidePasswordModal(); // Just hide the modal
+            hidePasswordModal();
+            passwordErrorMessage.classList.add('hidden');
         });
 
-        // Allow pressing Enter in the password input to confirm
-        passwordInput.addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                confirmPasswordButton.click();
-            }
-        });
+        supervisorLoginButton.addEventListener('click', showSupervisorLoginModal);
 
-        // Supervisor Login Modal Event Listeners
         confirmSupervisorLoginButton.addEventListener('click', () => {
-            if (supervisorPasswordInput.value === CORRECT_PASSWORD) {
+            const enteredPassword = supervisorPasswordInput.value;
+            if (enteredPassword === CORRECT_PASSWORD) {
                 hideSupervisorLoginModal();
-                console.log("Supervisor logged in successfully!");
-                statusMessage.textContent = "Supervisor logged in!";
-                statusMessage.classList.remove('text-gray-600', 'text-green-700', 'text-indigo-700');
-                statusMessage.classList.add('text-blue-700'); // Blue for supervisor status
-                switchToSupervisorView(); // Switch to the dashboard view
+                supervisorLoginErrorMessage.classList.add('hidden');
+                switchToSupervisorView();
             } else {
-                supervisorLoginErrorMessage.classList.remove('hidden'); // Show error message
+                supervisorLoginErrorMessage.classList.remove('hidden');
             }
         });
 
         cancelSupervisorLoginButton.addEventListener('click', () => {
             hideSupervisorLoginModal();
+            supervisorLoginErrorMessage.classList.add('hidden');
         });
 
-        supervisorPasswordInput.addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                confirmSupervisorLoginButton.click();
+        backToOperatorViewButton.addEventListener('click', switchToOperatorView);
+
+
+        // --- Firebase Authentication Initialization ---
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                // User is signed in.
+                userId = user.uid;
+                console.log("Firebase authenticated with UID:", userId);
+                await loadBreakLogs(); // Load logs and set UI state after auth
+            } else {
+                // User is signed out, sign in anonymously
+                try {
+                    // Use __initial_auth_token if available, otherwise sign in anonymously
+                    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                        console.log("Signed in with custom token.");
+                    } else {
+                        await signInAnonymously(auth);
+                        console.log("Signed in anonymously.");
+                    }
+                } catch (error) {
+                    console.error("Error during Firebase anonymous sign-in:", error);
+                    statusMessage.textContent = "Authentication error. Please refresh.";
+                    startBreakButton.disabled = true;
+                    endBreakButton.disabled = true;
+                    resetLogButton.disabled = true;
+                }
             }
         });
-
-
-        // Initial setup on window load
-        window.onload = function() {
-            updateBreakDisplay(); // Ensure timer shows 00:00:00 initially
-
-            // Authenticate anonymously and then proceed to load data
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    userId = user.uid;
-                    console.log("Authenticated with Firebase. User ID:", userId);
-                    await loadBreakLogs(); // Load existing data for this user
-                } else {
-                    console.log("No user signed in. Signing in anonymously...");
-                    try {
-                        const anonUser = await signInAnonymously(auth);
-                        userId = anonUser.user.uid;
-                        console.log("Signed in anonymously. User ID:", userId);
-                        await loadBreakLogs(); // Load existing data for this new anonymous user
-                    } catch (error) {
-                        console.error("Error authenticating. Please refresh.", error);
-                        statusMessage.textContent = "Error authenticating. Please refresh.";
-                        startBreakButton.disabled = true;
-                        endBreakButton.disabled = true;
-                        resetLogButton.disabled = true;
-                    }
-                }
-            });
-        };
     </script>
 </body>
 </html>
