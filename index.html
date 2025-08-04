@@ -13,8 +13,18 @@
         import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, setDoc, writeBatch, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global Firebase variables (provided by Canvas environment)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        // IMPORTANT: For live deployment, these values are replaced with your actual Firebase project configuration.
+        // You can find this in your Firebase project settings -> Project settings -> Your apps -> Web app.
+        const firebaseConfig = {
+          apiKey: "AIzaSyAuVMBEuRsFIcllvr0pfLq7rBMfrhUHjq8",
+          authDomain: "breaktracker-ce082.firebaseapp.com",
+          projectId: "breaktracker-ce082",
+          storageBucket: "breaktracker-ce082.firebasestorage.app",
+          messagingSenderId: "1088975926809",
+          appId: "1:1088975926809:web:b4ff3d7257e8bd3cca9c88",
+          measurementId: "G-RPJS2W27KD"
+        };
+        const appId = "1:1088975926809:web:b4ff3d7257e8bd3cca9c88"; // Use the appId from your firebaseConfig
 
         // Initialize Firebase
         const app = initializeApp(firebaseConfig);
@@ -1084,18 +1094,11 @@
                 console.log("Firebase authenticated with UID:", userId);
                 await loadBreakLogs(); // Load logs and set UI state after auth
             } else {
-                // User is signed out, sign in anonymously
-                console.log("User not signed in. Attempting anonymous sign-in.");
+                // User is signed out, always attempt anonymous sign-in for live deployment
+                console.log("User not signed in. Attempting anonymous sign-in for live site.");
                 try {
-                    // Use __initial_auth_token if available, otherwise sign in anonymously
-                    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                    if (initialAuthToken) {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                        console.log("Signed in with custom token successfully.");
-                    } else {
-                        await signInAnonymously(auth);
-                        console.log("Signed in anonymously successfully.");
-                    }
+                    await signInAnonymously(auth);
+                    console.log("Signed in anonymously successfully.");
                 } catch (error) {
                     console.error("Error during Firebase anonymous sign-in:", error);
                     statusMessage.textContent = "Authentication error. Please refresh.";
