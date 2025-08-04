@@ -542,7 +542,8 @@
             const durationSeconds = Math.floor(durationMs / 1000);
 
             // Log the current break to Firestore (private log for the operator)
-            await logBreakPrivate(breakEndTime, durationSeconds);
+            // PASS breakStartTime to logBreakPrivate
+            await logBreakPrivate(breakStartTime, breakEndTime, durationSeconds);
 
             // Add this completed break to the public historical log for supervisor
             try {
@@ -591,16 +592,20 @@
 
         /**
          * Logs the completed break session to Firestore (private log) and updates display.
+         * @param {Date} startDateTime - The Date object when the break started.
+         * @param {Date} endDateTime - The Date object when the break ended.
+         * @param {number} durationSeconds - The duration of the break in seconds.
          */
-        async function logBreakPrivate(breakEndTime, durationSeconds) {
-            if (!breakStartTime) return; // Should not happen if isBreakActive is true
+        async function logBreakPrivate(startDateTime, endDateTime, durationSeconds) {
+            if (!startDateTime) return; // Should not happen if isBreakActive is true
 
             const logEntryData = {
                 operatorName: operatorName,
                 breakNumber: breakCount + 1, // Increment for the log entry
+                breakStartTime: startDateTime.toISOString(), // Store actual start time
+                breakEndTime: endDateTime.toISOString(),   // Store actual end time
                 durationSeconds: durationSeconds,
-                timestamp: breakEndTime.toISOString(), // Store as ISO string for sorting
-                // Removed 'display' field as it's no longer used for rendering directly
+                timestamp: endDateTime.toISOString(), // Keep timestamp for sorting (could be breakEndTime)
             };
 
             try {
@@ -721,7 +726,7 @@
                     }
                 });
 
-                // Sort breaks by timestamp in ascending order for S.No (chronological)
+                // Sort breaks by timestamp (which is breakEndTime) in ascending order for S.No (chronological)
                 breaks.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
                 if (breaks.length === 0) {
@@ -730,11 +735,15 @@
                     noBreaksMessage.style.display = 'none';
                     breaks.forEach((entry, index) => {
                         const row = document.createElement('tr');
+                        // Use entry.breakStartTime and entry.breakEndTime for display
+                        const displayStartTime = entry.breakStartTime ? new Date(entry.breakStartTime).toLocaleTimeString() : 'N/A';
+                        const displayEndTime = entry.breakEndTime ? new Date(entry.breakEndTime).toLocaleTimeString() : 'N/A';
+
                         row.innerHTML = `
                             <td>${index + 1}</td>
                             <td>${entry.operatorName || 'N/A'}</td>
-                            <td>${new Date(entry.timestamp).toLocaleTimeString()}</td>
-                            <td>${new Date(entry.timestamp).toLocaleTimeString()}</td>
+                            <td>${displayStartTime}</td>
+                            <td>${displayEndTime}</td>
                             <td>${formatDuration(entry.durationSeconds)}</td>
                         `;
                         personalBreakLogBody.appendChild(row);
